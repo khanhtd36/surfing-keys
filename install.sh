@@ -35,8 +35,15 @@ echo "  2. Enable Developer mode"
 echo "  3. Click 'Load unpacked' and select: $DEST"
 
 if command -v open >/dev/null 2>&1; then
-  open "https://extensions" 2>/dev/null || true
-  open -a "Google Chrome" "chrome://extensions" 2>/dev/null || open -a "Brave Browser" "brave://extensions" 2>/dev/null || true
-elif command -v xdg-open >/dev/null 2>&1; then
-  xdg-open "chrome://extensions" 2>/dev/null || true
+  # macOS: launch the browser app directly with the URL, not via protocol handler
+  # (chrome:// has no registered scheme handler on a fresh install)
+  open -a "Google Chrome" --args "chrome://extensions" 2>/dev/null \
+    || open -a "Brave Browser" --args "brave://extensions" 2>/dev/null \
+    || echo "Could not find Chrome or Brave — open the extensions page manually."
+elif command -v google-chrome >/dev/null 2>&1; then
+  google-chrome "chrome://extensions" >/dev/null 2>&1 &
+elif command -v brave-browser >/dev/null 2>&1; then
+  brave-browser "brave://extensions" >/dev/null 2>&1 &
+else
+  echo "Could not find Chrome or Brave — open the extensions page manually."
 fi

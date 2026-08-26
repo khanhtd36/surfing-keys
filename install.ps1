@@ -33,8 +33,16 @@ Write-Host "  1. Open chrome://extensions (Brave: brave://extensions)"
 Write-Host "  2. Enable Developer mode"
 Write-Host "  3. Click 'Load unpacked' and select: $Dest"
 
-try {
-    Start-Process "chrome://extensions"
-} catch {
-    try { Start-Process "brave://extensions" } catch {}
+$browserCandidates = @(
+    @{ Exe = "$env:LOCALAPPDATA\Google\Chrome\Application\chrome.exe"; Url = "chrome://extensions" },
+    @{ Exe = "${env:ProgramFiles}\Google\Chrome\Application\chrome.exe"; Url = "chrome://extensions" },
+    @{ Exe = "${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe"; Url = "chrome://extensions" },
+    @{ Exe = "$env:LOCALAPPDATA\BraveSoftware\Brave-Browser\Application\brave.exe"; Url = "brave://extensions" },
+    @{ Exe = "${env:ProgramFiles}\BraveSoftware\Brave-Browser\Application\brave.exe"; Url = "brave://extensions" }
+)
+$browser = $browserCandidates | Where-Object { Test-Path $_.Exe } | Select-Object -First 1
+if ($browser) {
+    Start-Process -FilePath $browser.Exe -ArgumentList $browser.Url
+} else {
+    Write-Host "Could not find Chrome or Brave install path — open the extensions page manually."
 }
