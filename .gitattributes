@@ -8,3 +8,4 @@ pages/mermaid.* export-ignore
 pages/ga.js export-ignore
 pages/pdf export-ignore
 pages/pdf_viewer.html export-ignore
+install.sh text eol=lf
