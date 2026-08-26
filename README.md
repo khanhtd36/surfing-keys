@@ -5,8 +5,6 @@ that adds VIM-style keyboard navigation and control of the web. For features, ke
 see the [upstream README](https://github.com/brookhong/Surfingkeys#readme) and
 [API docs](https://github.com/brookhong/Surfingkeys/blob/master/docs/API.md).
 
-See [AGENTS.md](AGENTS.md) for what this fork changes from upstream and why.
-
 ## Install
 
 Chrome/Brave (any Chromium browser), prebuilt via GitHub Releases — no local build needed:
