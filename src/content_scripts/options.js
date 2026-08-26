@@ -41,7 +41,7 @@ export default function(
             }, 10);
         };
 
-        _ace.setTheme("ace/theme/chrome");
+        _ace.setTheme("ace/theme/tomorrow_night");
         ace.config.loadModule('ace/ext/language_tools', function (mod) {
             ace.config.loadModule('ace/autocomplete', function (mod) {
                 mod.Autocomplete.startCommand.bindKey = "Tab";

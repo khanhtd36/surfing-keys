@@ -1,26 +1,28 @@
 body {
     margin: 0px;
+    background: #24272e;
+    color: #abb2bf;
 }
 kbd {
     display: inline-block;
     padding: 3px 5px;
     font: 11px Consolas, "Liberation Mono", Menlo, Courier, monospace;
     line-height: 10px;
-    color: #555;
+    color: #dcdfe4;
     vertical-align: middle;
-    background-color: #fcfcfc;
-    border: solid 1px #ccc;
-    border-bottom-color: #bbb;
+    background-color: #3a3f4b;
+    border: solid 1px #4b5162;
+    border-bottom-color: #3a3f4b;
     border-radius: 3px;
-    box-shadow: inset 0 -1px 0 #bbb;
+    box-shadow: inset 0 -1px 0 #3a3f4b;
 }
 .description {
     padding: 10px 10%;
-    border-bottom: 1px solid #777;
+    border-bottom: 1px solid #545862;
 }
 .description>div {
     padding: 0px 20px;
-    border-left: 1px solid #e7e7e7;
+    border-left: 1px solid #3b4048;
     display: inline-block;
 }
 .annotation {
@@ -31,8 +33,8 @@ kbd {
     padding: 0px 10%;
     height: 90vh; /* window.innerHeight * 0.88 */
     overflow: scroll;
-    background: #777;
+    background: #1a1c21;
 }
 .content>div {
-    background: #fff !important;
+    background: #24272e !important;
 }

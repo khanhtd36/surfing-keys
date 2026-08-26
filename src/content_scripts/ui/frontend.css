@@ -1,43 +1,43 @@
 .sk_theme {
-    background: #fff;
-    color: #000;
+    background: #24272e;
+    color: #abb2bf;
 }
 .sk_theme input {
-    color: #000;
+    color: #abb2bf;
 }
 .sk_theme .url {
-    color: #222;
+    color: #c8ccd4;
 }
 .sk_theme .annotation {
-    color: #222;
+    color: #9198a1;
 }
 .sk_theme kbd {
-    background: #ddd;
-    color: #111;
+    background: #3a3f4b;
+    color: #dcdfe4;
 }
 .sk_theme .frame {
     background: rgba(129, 120, 222, 0.62);
 }
 .sk_theme .omnibar_highlight {
-    color: #b90c0c;
+    color: #e06c75;
 }
 .sk_theme .omnibar_folder {
-    color: #4b3acc;
+    color: #9d84ff;
 }
 .sk_theme .omnibar_timestamp {
-    color: #cc4b9c;
+    color: #e07bc0;
 }
 .sk_theme .omnibar_visitcount {
-    color: #1e46e9;
+    color: #5c7cfa;
 }
 .sk_theme .prompt, .sk_theme .resultPage {
-    color: #aaa;
+    color: #8b93a1;
 }
 .sk_theme .feature_name {
-    color: #e09b7e;
+    color: #eeb08c;
 }
 .sk_theme .separator {
-    color: #b5b507;
+    color: #d7d74d;
 }
 
 body {
@@ -85,7 +85,7 @@ body {
 #sk_omnibarSearchArea {
     display: flex;
     align-items: center;
-    border-bottom: 1px solid #999;
+    border-bottom: 1px solid #454b57;
 }
 .sk_omnibar_middle #sk_omnibarSearchArea {
     margin: 0.5rem 1rem;
@@ -147,13 +147,13 @@ body {
     content: var(--llm-assistant-icon, 'ℹ︎');
 }
 .sk_theme #sk_omnibarSearchResult>ul>li:nth-child(odd) {
-    background: #fafafa;
+    background: #2c313a;
 }
 .sk_theme #sk_omnibarSearchResult>ul>li.focused {
-    background: #cddef9;
+    background: #3e4452;
 }
 .sk_theme #sk_omnibarSearchResult>ul>li.window {
-    border: 2px solid #c7c7c773;
+    border: 2px solid #5c637073;
     border-radius: 8px;
     margin: 4px 0px;
 }
@@ -200,7 +200,7 @@ body {
     z-index: 2147483000;
     padding: 4px 8px 0 8px;
     border-radius: 4px 4px 0px 0px;
-    border: 1px solid #777;
+    border: 1px solid #545862;
     font-size: 12px;
 }
 #sk_status>span {
@@ -216,7 +216,7 @@ body {
     display: inline-block;
 }
 .expandRichHints kbd>.candidates {
-    color: #de0606;
+    color: #e06c75;
     font-weight: bold;
 }
 .expandRichHints kbd {
@@ -288,10 +288,10 @@ kbd {
     font: 11px Consolas, "Liberation Mono", Menlo, Courier, monospace;
     line-height: 10px;
     vertical-align: middle;
-    border: solid 1px #ccc;
-    border-bottom-color: #bbb;
+    border: solid 1px #4b5162;
+    border-bottom-color: #3a3f4b;
     border-radius: 3px;
-    box-shadow: inset 0 -1px 0 #bbb;
+    box-shadow: inset 0 -1px 0 #3a3f4b;
 }
 #sk_banner {
     padding: 0.5rem;
@@ -304,7 +304,8 @@ kbd {
     border: 1px solid #ffc356;
     border-top-style: none;
     text-align: center;
-    background: rgb(255, 233, 182);
+    background: #4a3a1f;
+    color: #f0d9a8;
     white-space: nowrap;
     text-overflow: ellipsis;
     overflow: hidden;
@@ -354,10 +355,10 @@ div.sk_tab {
     justify-items: center;
     border-radius: 3px;
     margin: 1px;
-    background: -webkit-gradient(linear, left top, left bottom, color-stop(0%,#DAE6F5), color-stop(100%,#B0CCEF));
+    background: -webkit-gradient(linear, left top, left bottom, color-stop(0%,#2c313a), color-stop(100%,#3a4150));
     box-shadow: 0px 3px 7px 0px rgba(245, 245, 0, 0.3);
     padding-top: 2px;
-    border-top: solid 1px black;
+    border-top: solid 1px #545862;
 }
 div.sk_tab_wrap {
     display: inline-block;
@@ -378,14 +379,14 @@ div.sk_tab_title {
     text-overflow: ellipsis;
     overflow: hidden;
     padding-left: 5px;
-    color: #000;
+    color: #dcdfe4;
 }
 div.sk_tab_url {
     font-size: 10pt;
     white-space: nowrap;
     text-overflow: ellipsis;
     overflow: hidden;
-    color: #333;
+    color: #9198a1;
 }
 div.sk_tab_hint {
     display: inline-block;
@@ -403,7 +404,7 @@ div.sk_tab_group {
     font-size: large;
     color: #e1e1e1;
     padding: 4px;
-    border: 1px solid #ccc;
+    border: 1px solid #4b5162;
     border-radius: 6px;
     margin: 10px;
     display: inline-block;
@@ -419,11 +420,11 @@ div.sk_tab_group_header>div {
 #sk_bubble {
     position: absolute;
     padding: 9px;
-    border: 1px solid #999;
+    border: 1px solid #545862;
     border-radius: 4px;
     box-shadow: 0 0 20px rgba(0,0,0,0.5);
-    color: #222;
-    background-color: #ffd;
+    color: #e8e6d8;
+    background-color: #3a3320;
     z-index: 2147483000;
     font-size: 14px;
 }
@@ -443,7 +444,7 @@ div.sk_tab_group_header>div {
     background-image: linear-gradient(transparent, rgb(0, 0, 0));
 }
 #sk_bubble * {
-    color: #000 !important;
+    color: #e8e6d8 !important;
 }
 div.sk_arrow>div:nth-of-type(1) {
     left: 0;
@@ -454,10 +455,10 @@ div.sk_arrow>div:nth-of-type(1) {
     background: transparent;
 }
 div.sk_arrow[dir=down]>div:nth-of-type(1) {
-    border-top: 12px solid #999;
+    border-top: 12px solid #545862;
 }
 div.sk_arrow[dir=up]>div:nth-of-type(1) {
-    border-bottom: 12px solid #999;
+    border-bottom: 12px solid #545862;
 }
 div.sk_arrow>div:nth-of-type(2) {
     left: 2px;
@@ -468,11 +469,11 @@ div.sk_arrow>div:nth-of-type(2) {
     background: transparent;
 }
 div.sk_arrow[dir=down]>div:nth-of-type(2) {
-    border-top: 10px solid #ffd;
+    border-top: 10px solid #3a3320;
 }
 div.sk_arrow[dir=up]>div:nth-of-type(2) {
     top: 2px;
-    border-bottom: 10px solid #ffd;
+    border-bottom: 10px solid #3a3320;
 }
 .ace_editor.ace_autocomplete {
     z-index: 2147483300 !important;

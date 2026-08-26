@@ -1248,7 +1248,7 @@ function createAceEditor(normal, front) {
         _ace.$emacsModeHandler.bindKey("C-x C-s", "closeAndSave");
         return _ace.$emacsModeHandler;
     }
-    _ace.setTheme("ace/theme/chrome");
+    _ace.setTheme("ace/theme/tomorrow_night");
     var keybindingsDeferred = new Promise(function(resolve, reject) {
         var aceKeyboardLoaded = aceKeyboardVimLoaded;
         if (runtime.conf.aceKeybindings === "emacs") {

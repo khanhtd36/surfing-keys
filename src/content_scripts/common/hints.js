@@ -53,7 +53,7 @@ div.menu-item {
     padding: 4px;
     margin: 4px;
     background: #454545;
-    box-shadow: inset 0 -1px 0 #bbb;
+    box-shadow: inset 0 -1px 0 #3a3f4b;
     border-radius: 3px;
     font-size: 14px;
 }
@@ -64,10 +64,10 @@ kbd {
     font: 14px Consolas, "Liberation Mono", Menlo, Courier, monospace;
     line-height: 10px;
     vertical-align: middle;
-    border: solid 1px #ccc;
-    border-bottom-color: #bbb;
+    border: solid 1px #4b5162;
+    border-bottom-color: #3a3f4b;
     border-radius: 3px;
-    box-shadow: inset 0 -1px 0 #bbb;
+    box-shadow: inset 0 -1px 0 #3a3f4b;
     margin-right: 4px;
 }
 `);
