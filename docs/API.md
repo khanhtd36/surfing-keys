@@ -404,7 +404,7 @@ The default `onHintKey` implementation.
 ```javascript
 mapkey('q', 'click on images', function() {
     Hints.create("div.media_box img", Hints.dispatchMouseClick);
-}, {domain: /weibo.com/i});
+}, {domain: /twitter.com/i});
 ```
 
 ## Hints.click

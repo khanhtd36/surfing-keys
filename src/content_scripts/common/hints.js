@@ -353,7 +353,7 @@ div.hint-scrollable {
      * @example
      * mapkey('q', 'click on images', function() {
      *     Hints.create("div.media_box img", Hints.dispatchMouseClick);
-     * }, {domain: /weibo.com/i});
+     * }, {domain: /twitter.com/i});
      */
     self.setContainerCookieStoreId = function(cookieStoreId) {
         _containerCookieStoreId = cookieStoreId;

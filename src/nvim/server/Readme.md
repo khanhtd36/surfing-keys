@@ -1,3 +1,7 @@
+> TODO: `allowed_origins` below list upstream's published extension IDs (Chrome Web Store / Firefox listing).
+> If this fork ever gets loaded via a store listing instead of "Load unpacked", add that build's own
+> extension ID here too, or native messaging (neovim integration) won't authorize for it.
+
 ## Installation under Windows
 
 **Note: Please update the paths when creating those files, in below instructions, I'm putting those files under `C:\Users\brook\.Surfingkeys_NativeMessagingHosts\` and `nvim.exe` under `d:\tools\Neovim\bin\`.**

@@ -825,11 +825,6 @@ export default function(api, clipboard, insert, normal, hints, visual, front, br
             return r.phrase;
         });
     });
-    addSearchAlias('b', 'baidu', 'https://www.baidu.com/s?wd=', 's', 'https://suggestion.baidu.com/su?cb=&wd=', function(response) {
-        var res = response.text.match(/,s:\[("[^\]]+")]}/);
-        return res ? res[1].replace(/"/g, '').split(",") : [];
-    });
-
     addSearchAlias('e', 'wikipedia', 'https://en.wikipedia.org/wiki/', 's', 'https://en.wikipedia.org/w/api.php?action=opensearch&format=json&formatversion=2&namespace=0&limit=40&search=', function(response) {
         return JSON.parse(response.text)[1];
     });

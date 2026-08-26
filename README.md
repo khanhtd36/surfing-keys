@@ -16,10 +16,7 @@ Surfingkeys does its best to make full use of the keyboard for web browsing, but
 
 <img src="https://raw.githubusercontent.com/brookhong/Surfingkeys/master/sk.svg" width="384">
 
-* [Surfingkeys - Chrome Web Store](https://chrome.google.com/webstore/detail/surfingkeys/gfbliohnnapiefjpjlpjnehglfpaknnc) for Google Chrome, Chromium based browsers
-* [Surfingkeys – Get this Extension for 🦊 Firefox](https://addons.mozilla.org/en-US/firefox/addon/surfingkeys_ff/) for Firefox
-* [Surfingkeys - Microsoft Edge Addons](https://microsoftedge.microsoft.com/addons/detail/kgnghhfkloifoabeaobjkgagcecbnppg) for Microsoft Edge
-* [Surfingkeys on the Mac App Store](https://apps.apple.com/us/app/surfingkeys/id1609752330) for Safari, works on both macOS and iOS, except that on iOS an external keyboard must be connected to your device. There is one exception of the [special feature designed for iOS devices](https://youtu.be/xaTf2booQkQ) -- `Search selected with`.
+This is a personal fork, built and loaded unpacked (`chrome://extensions` → Developer mode → Load unpacked) rather than installed from a store.
 
 ### Feature availability
 | Features \ Browsers | Chromium family (above 45) | Firefox (above 57) | Safari (above 15) |
@@ -92,7 +89,7 @@ Surfingkeys does its best to make full use of the keyboard for web browsing, but
 
 ## Quick start
 
-After you install the extension from [Chrome Web Store](https://chrome.google.com/webstore/detail/surfingkeys/gfbliohnnapiefjpjlpjnehglfpaknnc) or [Firefox Add-ons](https://addons.mozilla.org/en-US/firefox/addon/surfingkeys_ff/), open a site you'd like to browse. Then press `?` or `u` to take a quick look at the default mappings first. Press `Esc` to hide the usage popover.
+After you load the extension, open a site you'd like to browse. Then press `?` or `u` to take a quick look at the default mappings first. Press `Esc` to hide the usage popover.
 
 Try some mappings described in the usage popover. For example, press `e` to scroll a page up, `d` to scroll a page down, `;e` to open settings page.
 
@@ -706,11 +703,6 @@ Under Mac for both Chrome and Firefox
 * [pdf.js](https://github.com/mozilla/pdf.js), for pdf viewer.
 * [vimium](https://github.com/philc/vimium), for the days without this extension.
 * [cVim](https://github.com/1995eaton/chromium-vim), for the days without this extension.
-
-## Donate
-Support me with [paypal](https://www.paypal.me/brookhong), or
-
-![donation](https://raw.githubusercontent.com/brookhong/Surfingkeys/master/src/pages/donation.png)
 
 ## License
 

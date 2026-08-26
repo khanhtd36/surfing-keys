@@ -18,14 +18,14 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/brookhong/Surfingkeys.git"
+    "url": "git+https://github.com/khanhtd36/surfing-keys.git"
   },
   "author": "brook hong",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/brookhong/Surfingkeys/issues"
+    "url": "https://github.com/khanhtd36/surfing-keys/issues"
   },
-  "homepage": "https://github.com/brookhong/Surfingkeys#readme",
+  "homepage": "https://github.com/khanhtd36/surfing-keys#readme",
   "engines": {
     "node": ">=22.14.0"
   },
