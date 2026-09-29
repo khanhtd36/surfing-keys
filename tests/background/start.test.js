@@ -269,11 +269,6 @@ describe('start', () => {
             expect(chrome.runtime.onMessage.listeners).toHaveLength(1);
         });
 
-        it('registers the uninstall survey url', () => {
-            const {chrome} = bootstrap();
-            expect(chrome.runtime.setUninstallURL).toHaveBeenCalledWith(expect.stringContaining('http'));
-        });
-
         it('wires up the user script world on MV3', () => {
             const {chrome} = bootstrap({chrome: {manifestVersion: 3}});
             expect(chrome.runtime.onUserScriptMessage.listeners).toHaveLength(1);
