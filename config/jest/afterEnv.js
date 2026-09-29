@@ -1,8 +1,7 @@
 const { TextEncoder, TextDecoder } = require('util');
 const { toMatchImageSnapshot } = require('jest-image-snapshot');
 
-// jsdom does not expose TextEncoder/TextDecoder, which aws4fetch (imported by
-// src/background/llm.js) needs at module scope.
+// jsdom does not expose TextEncoder/TextDecoder, which utils.js needs.
 if (typeof global.TextEncoder === 'undefined') {
     global.TextEncoder = TextEncoder;
 }
