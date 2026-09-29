@@ -1,5 +1,6 @@
 import { RUNTIME, dispatchSKEvent, runtime } from './runtime.js';
 import KeyboardUtils from './keyboardUtils';
+import { selectionToMarkdown } from './pageMarkdown.js';
 import {
     actionWithSelectionPreserved,
     createElementWithContent,
@@ -56,10 +57,17 @@ export default function(api, clipboard, insert, normal, hints, visual, front, br
         openVim(false);
     });
     const browserName = getBrowserName();
-    if (browserName === "Chrome") {
+    // Neovim is built for everything but Safari, so the mappings are gated the same
+    // way: offered without pages/neovim_lib.js they open an editor that never loads.
+    if (!browserName.startsWith("Safari")) {
         imapkey('<Ctrl-Alt-i>', '#15Open neovim for current input', function() {
             openVim(true);
         });
+        mapkey(';v', '#11Open neovim', function() {
+            tabOpenLink("/pages/neovim.html");
+        });
+    }
+    if (browserName === "Chrome") {
         mapkey(';s', 'Toggle PDF viewer from SurfingKeys', function() {
             var pdfUrl = window.location.href;
             if (pdfUrl.indexOf(chrome.runtime.getURL("/pages/pdf_viewer.html")) === 0) {
@@ -222,7 +230,7 @@ export default function(api, clipboard, insert, normal, hints, visual, front, br
         }
     };
 
-    mapkey('<Space>t', '#8Translate selected text with LLM', function() {
+    mapkey(';lt', '#8Translate selected text with LLM', function() {
         hints.create(runtime.conf.textAnchorPat, function (element) {
             const text = element[1] === 0 ? element[0].data.trim() : element[2].trim();
             if (text) {
@@ -593,14 +601,17 @@ export default function(api, clipboard, insert, normal, hints, visual, front, br
         front.openOmnibar({type: "Commands"});
     });
     mapkey('A', '#8Open llm chat', function() {
-        front.openOmnibar({type: "LLMChat", extra: {
-            system: document.body.innerText
-        }});
+        // the page is not sent along: the model asks for it with `read_page` when a
+        // question actually needs it, so a chat that never needs it never pays for it
+        front.openOmnibar({type: "LLMChat"});
     });
     vmapkey('A', '#8Open llm chat', function() {
-        const sel = window.getSelection().toString();
         front.openOmnibar({type: "LLMChat", extra: {
-            system: sel
+            // what the user pointed at, so `read_page` serves this instead of the
+            // whole page; it cannot be read later, the omnibar takes the selection.
+            // Converted like the page itself rather than taken as a string: a
+            // selection over a list of links is mostly the links.
+            picked: selectionToMarkdown()
         }});
     });
     mapkey('yi', '#7Yank text of an input', function() {
@@ -930,9 +941,6 @@ export default function(api, clipboard, insert, normal, hints, visual, front, br
         });
         mapkey(';i', '#12Open Chrome Inspect', function() {
             tabOpenLink("chrome://inspect/#devices");
-        });
-        mapkey(';v', '#11Open neovim', function() {
-            tabOpenLink("/pages/neovim.html");
         });
     }
 

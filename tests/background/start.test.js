@@ -130,6 +130,44 @@ describe('_save', () => {
         _save(localStorage, {a: 1}, () => {});
         expect(set).toHaveBeenCalledWith({a: 1}, expect.any(Function));
     });
+
+    it('caches the snippets the native app reads for localPath <native>', async () => {
+        global.fetch = jest.fn();
+        global.chrome.runtime = {
+            sendNativeMessage: jest.fn((id, msg, cb) => cb({data: 'from the file'})),
+        };
+        const set = jest.fn().mockImplementation((data, cb) => cb && cb());
+        localStorage.set = set;
+        await new Promise((resolve) => {
+            _save(localStorage, {localPath: '<native>', snippets: 'stale'}, resolve);
+        });
+        expect(global.fetch).not.toHaveBeenCalled();
+        expect(set).toHaveBeenCalledWith({localPath: '<native>', snippets: 'from the file'}, expect.any(Function));
+    });
+
+    it('still saves the other settings when <native> cannot be read', async () => {
+        global.chrome.runtime = {
+            sendNativeMessage: jest.fn((id, msg, cb) => cb({error: 'No such file'})),
+        };
+        const set = jest.fn().mockImplementation((data, cb) => cb && cb());
+        localStorage.set = set;
+        await new Promise((resolve) => {
+            _save(localStorage, {localPath: '<native>', showAdvanced: true}, resolve);
+        });
+        // No `snippets` key, so the copy already in storage is left in place.
+        expect(set).toHaveBeenCalledWith({localPath: '<native>', showAdvanced: true}, expect.any(Function));
+    });
+
+    it('still saves the other settings when a localPath URL cannot be fetched', async () => {
+        mockFetchFailure(new Error('offline'));
+        const set = jest.fn().mockImplementation((data, cb) => cb && cb());
+        localStorage.set = set;
+        await new Promise((resolve) => {
+            _save(localStorage, {localPath: 'http://x', showAdvanced: true}, resolve);
+        });
+        // Same as <native>: the settings being saved are unrelated to the file.
+        expect(set).toHaveBeenCalledWith({localPath: 'http://x', showAdvanced: true}, expect.any(Function));
+    });
 });
 
 describe('start', () => {
@@ -141,11 +179,13 @@ describe('start', () => {
     ];
 
     // Boot start() against fake extension APIs and hand back everything a test
-    // needs to poke at it.
-    const bootstrap = ({chrome: chromeOpts, browser: browserOpts} = {}) => {
+    // needs to poke at it. `beforeStart` runs against the mock before start() is
+    // called, for the boot-time settings load.
+    const bootstrap = ({chrome: chromeOpts, browser: browserOpts, beforeStart} = {}) => {
         const chrome = createChromeMock({tabs: TABS.map((t) => ({...t})), ...chromeOpts});
         global.chrome = chrome;
         const browser = createBrowserStub(browserOpts);
+        beforeStart && beforeStart(chrome);
         const returned = start(browser);
         // Settings writes land in chrome.storage.local via _save(). Read the
         // accumulated store rather than the call arguments: _save() mutates the
@@ -856,7 +896,7 @@ describe('start', () => {
                 {action: 'loadSettingsFromUrl', needResponse: true, url: 'https://conf.example/sk.js'},
                 senderFor(12));
             await flushPromises();
-            expect(sendResponse).toHaveBeenCalledWith({status: 'Failed'});
+            expect(sendResponse).toHaveBeenCalledWith({status: 'Failed', error: 'offline'});
         });
 
         it('reports the error when boot-time snippets cannot be fetched', async () => {
@@ -866,6 +906,387 @@ describe('start', () => {
             expect(browser._applyProxySettings).toHaveBeenCalledWith(expect.objectContaining({
                 error: expect.stringContaining('Failed to read snippets'),
             }));
+        });
+
+        describe('localPath <native>', () => {
+            // Answers Settings.read with `reply`. This is the SAFARI shape of the read
+            // -- one message to the containing app; with a neovim connection it goes
+            // over that instead, see the block below.
+            //
+            // Every read must be settled: the waiter list and `nativeHost` are module
+            // state in start.js, so an unsettled read is joined by the next test's.
+            const mockNativeSettings = (chrome, reply) => {
+                chrome.runtime.sendNativeMessage = jest.fn((id, msg, cb) => {
+                    cb(msg.command === 'Settings.read' ? reply : {nativeReply: msg.command});
+                });
+                return chrome.runtime.sendNativeMessage;
+            };
+
+            it('reads the snippets from the native app instead of fetching', async () => {
+                const fetchMock = mockFetchText('from the network');
+                const {dispatch, stored, chrome} = bootstrap();
+                const native = mockNativeSettings(chrome, {data: 'api.map("a", "b");'});
+                const {sendResponse} = dispatch(
+                    {action: 'loadSettingsFromUrl', needResponse: true, url: '<native>'},
+                    senderFor(12));
+                await flushPromises();
+                expect(native).toHaveBeenCalledWith('surfingkeys',
+                    {command: 'Settings.read'}, expect.any(Function));
+                expect(fetchMock).not.toHaveBeenCalled();
+                expect(sendResponse).toHaveBeenCalledWith({
+                    status: 'Succeeded',
+                    snippets: 'api.map("a", "b");',
+                });
+                expect(stored()).toMatchObject({localPath: '<native>', snippets: 'api.map("a", "b");'});
+            });
+
+            it("passes the native app's own reason back when the file cannot be read", async () => {
+                const {dispatch, chrome} = bootstrap();
+                mockNativeSettings(chrome, {error: 'Could not read /Users/x/.surfingkeys.js'});
+                const {sendResponse} = dispatch(
+                    {action: 'loadSettingsFromUrl', needResponse: true, url: '<native>'},
+                    senderFor(12));
+                await flushPromises();
+                expect(sendResponse).toHaveBeenCalledWith({
+                    status: 'Failed',
+                    error: 'Could not read /Users/x/.surfingkeys.js',
+                });
+            });
+
+            it('reports a missing native app rather than hanging', async () => {
+                const {dispatch, chrome} = bootstrap();
+                chrome.runtime.sendNativeMessage = jest.fn((id, msg, cb) => {
+                    chrome.runtime.lastError = {message: 'native host not found'};
+                    cb(undefined);
+                    chrome.runtime.lastError = undefined;
+                });
+                const {sendResponse} = dispatch(
+                    {action: 'loadSettingsFromUrl', needResponse: true, url: '<native>'},
+                    senderFor(12));
+                await flushPromises();
+                expect(sendResponse).toHaveBeenCalledWith({
+                    status: 'Failed',
+                    error: 'native host not found',
+                });
+            });
+
+            it('reports a native messaging API that throws on the spot', async () => {
+                const {dispatch, chrome} = bootstrap();
+                // Firefox throws here when the extension has no nativeMessaging
+                // permission, before any callback exists to report it.
+                chrome.runtime.sendNativeMessage = jest.fn(() => {
+                    throw new Error('Missing host permission');
+                });
+                const {sendResponse} = dispatch(
+                    {action: 'loadSettingsFromUrl', needResponse: true, url: '<native>'},
+                    senderFor(12));
+                await flushPromises();
+                expect(sendResponse).toHaveBeenCalledWith({
+                    status: 'Failed',
+                    error: 'Error: Missing host permission',
+                });
+            });
+
+            // The nvim host in src/nvim/server wraps every reply as {status, res},
+            // where the Safari app answers with the payload itself.
+            it('unwraps the reply of the nvim native messaging host', async () => {
+                const {dispatch, stored, chrome} = bootstrap();
+                mockNativeSettings(chrome, {status: true, res: {data: 'from the lua host'}});
+                const {sendResponse} = dispatch(
+                    {action: 'loadSettingsFromUrl', needResponse: true, url: '<native>'},
+                    senderFor(12));
+                await flushPromises();
+                expect(sendResponse).toHaveBeenCalledWith({
+                    status: 'Succeeded',
+                    snippets: 'from the lua host',
+                });
+                expect(stored()).toMatchObject({snippets: 'from the lua host'});
+            });
+
+            it("reports the nvim host's own reason for a failed read", async () => {
+                const {dispatch, chrome} = bootstrap();
+                mockNativeSettings(chrome, {status: true, res: {error: 'No such file or directory'}});
+                const {sendResponse} = dispatch(
+                    {action: 'loadSettingsFromUrl', needResponse: true, url: '<native>'},
+                    senderFor(12));
+                await flushPromises();
+                expect(sendResponse).toHaveBeenCalledWith({
+                    status: 'Failed',
+                    error: 'No such file or directory',
+                });
+            });
+
+            it('tells the user to update a native host that ignores the command', async () => {
+                const {dispatch, chrome} = bootstrap();
+                // An older server.lua returns nil for a command it does not know,
+                // and the wrapper still reports status.
+                mockNativeSettings(chrome, {status: true});
+                const {sendResponse} = dispatch(
+                    {action: 'loadSettingsFromUrl', needResponse: true, url: '<native>'},
+                    senderFor(12));
+                await flushPromises();
+                expect(sendResponse).toHaveBeenCalledWith({
+                    status: 'Failed',
+                    error: expect.stringContaining('update it'),
+                });
+            });
+
+            it('loads the file at boot time', async () => {
+                const {browser} = bootstrap({
+                    browser: {settings: {localPath: '<native>'}},
+                    beforeStart: (chrome) => mockNativeSettings(chrome, {data: 'from the file'}),
+                });
+                await flushPromises();
+                expect(browser._applyProxySettings).toHaveBeenCalledWith(expect.objectContaining({
+                    snippets: 'from the file',
+                }));
+            });
+
+            it('keeps the cached snippets and names the file when the read fails at boot', async () => {
+                const {browser} = bootstrap({
+                    browser: {settings: {localPath: '<native>', snippets: 'last good copy'}},
+                    beforeStart: (chrome) => mockNativeSettings(chrome, {error: 'No such file'}),
+                });
+                await flushPromises();
+                expect(browser._applyProxySettings).toHaveBeenCalledWith(expect.objectContaining({
+                    snippets: 'last good copy',
+                    error: 'Failed to read snippets from ~/.surfingkeys.js: No such file',
+                }));
+            });
+
+            // Every frame of a page asks for full settings.
+            it('serves overlapping reads from one call to the native app', async () => {
+                const {dispatch, chrome} = bootstrap({browser: {settings: {localPath: '<native>'}}});
+                // Held so all three reads are in flight together.
+                let answer;
+                const native = jest.fn((id, msg, cb) => {
+                    answer = () => cb({data: 'read once'});
+                });
+                chrome.runtime.sendNativeMessage = native;
+                const responses = [12, 13, 21].map((tabId) => dispatch(
+                    {action: 'getSettings', needResponse: true}, senderFor(tabId)).sendResponse);
+                expect(native).toHaveBeenCalledTimes(1);
+                answer();
+                await flushPromises();
+                responses.forEach((sendResponse) => {
+                    expect(sendResponse.mock.calls[0][0].settings.snippets).toBe('read once');
+                });
+            });
+
+            it('reads the file again once the previous read has finished', async () => {
+                const {dispatch, chrome} = bootstrap({browser: {settings: {localPath: '<native>'}}});
+                const native = mockNativeSettings(chrome, {data: 'current contents'});
+                native.mockClear();
+                dispatch({action: 'getSettings', needResponse: true}, senderFor(12));
+                await flushPromises();
+                dispatch({action: 'getSettings', needResponse: true}, senderFor(13));
+                await flushPromises();
+                // Sharing a settled read would serve a copy taken before the edit.
+                expect(native).toHaveBeenCalledTimes(2);
+            });
+
+            it('gives up on a native app that never answers', async () => {
+                jest.useFakeTimers();
+                try {
+                    const {dispatch, chrome} = bootstrap();
+                    // Connects, accepts the command, replies nothing ever.
+                    chrome.runtime.sendNativeMessage = jest.fn(() => {});
+                    const {sendResponse} = dispatch(
+                        {action: 'loadSettingsFromUrl', needResponse: true, url: '<native>'},
+                        senderFor(12));
+                    jest.advanceTimersByTime(4999);
+                    expect(sendResponse).not.toHaveBeenCalled();
+                    jest.advanceTimersByTime(1);
+                    expect(sendResponse).toHaveBeenCalledWith({
+                        status: 'Failed',
+                        error: 'the native app did not answer within 5 seconds',
+                    });
+                } finally {
+                    jest.useRealTimers();
+                }
+            });
+
+            it('ignores a reply that arrives after the deadline', async () => {
+                jest.useFakeTimers();
+                try {
+                    const {dispatch, chrome} = bootstrap();
+                    let answer;
+                    chrome.runtime.sendNativeMessage = jest.fn((id, msg, cb) => {
+                        answer = () => cb({data: 'too late'});
+                    });
+                    const {sendResponse} = dispatch(
+                        {action: 'loadSettingsFromUrl', needResponse: true, url: '<native>'},
+                        senderFor(12));
+                    jest.advanceTimersByTime(5000);
+                    answer();
+                    // A second response would hand the page settings it has already
+                    // been told it is not getting.
+                    expect(sendResponse).toHaveBeenCalledTimes(1);
+                    expect(sendResponse.mock.calls[0][0].status).toBe('Failed');
+                } finally {
+                    jest.useRealTimers();
+                }
+            });
+
+            // The read rides the connection the editor already holds, so there is one
+            // neovim rather than one per read.
+            describe('over the neovim connection', () => {
+                const withConnection = (request) => ({
+                    settings: {localPath: '<native>'},
+                    nvimServer: {ready: true, instance: Promise.resolve({}), request},
+                });
+
+                it('sends the command on the existing connection, launching nothing', async () => {
+                    const request = jest.fn(() => Promise.resolve({status: true, res: {data: 'over the port'}}));
+                    const {dispatch, stored, chrome} = bootstrap({browser: withConnection(request)});
+                    const {sendResponse} = dispatch(
+                        {action: 'loadSettingsFromUrl', needResponse: true, url: '<native>'},
+                        senderFor(12));
+                    await flushPromises();
+                    expect(request).toHaveBeenCalledWith({command: 'Settings.read'},
+                        {signal: expect.anything()});
+                    // Every sendNativeMessage here would be another `nvim --headless`.
+                    expect(chrome.runtime.sendNativeMessage).not.toHaveBeenCalled();
+                    expect(sendResponse).toHaveBeenCalledWith({
+                        status: 'Succeeded',
+                        snippets: 'over the port',
+                    });
+                    expect(stored()).toMatchObject({snippets: 'over the port'});
+                });
+
+                it('uses the connection for the boot-time load too', async () => {
+                    const request = jest.fn(() => Promise.resolve({status: true, res: {data: 'from the file'}}));
+                    const {browser, chrome} = bootstrap({browser: withConnection(request)});
+                    await flushPromises();
+                    expect(browser._applyProxySettings).toHaveBeenCalledWith(expect.objectContaining({
+                        snippets: 'from the file',
+                    }));
+                    expect(chrome.runtime.sendNativeMessage).not.toHaveBeenCalled();
+                });
+
+                it('reports a connection that is not usable and keeps the cached copy', async () => {
+                    const request = jest.fn(() => Promise.reject(new Error('the connection to neovim is not open')));
+                    const {browser, chrome} = bootstrap({
+                        browser: {
+                            settings: {localPath: '<native>', snippets: 'last good copy'},
+                            nvimServer: {ready: false, request},
+                        },
+                    });
+                    await flushPromises();
+                    // Rather than quietly launching a one-off nvim, which puts back
+                    // the churn this connection exists to remove.
+                    expect(chrome.runtime.sendNativeMessage).not.toHaveBeenCalled();
+                    expect(browser._applyProxySettings).toHaveBeenCalledWith(expect.objectContaining({
+                        snippets: 'last good copy',
+                        error: 'Failed to read snippets from ~/.surfingkeys.js: '
+                            + 'the connection to neovim is not open',
+                    }));
+                });
+
+                it('still shares overlapping reads across frames', async () => {
+                    let answer;
+                    const request = jest.fn(() => new Promise((resolve) => {
+                        answer = () => resolve({status: true, res: {data: 'read once'}});
+                    }));
+                    const {dispatch} = bootstrap({browser: withConnection(request)});
+                    // Settle the boot-time read before holding one open, or the
+                    // frames below join THAT read and nothing is measured.
+                    await flushPromises();
+                    answer();
+                    await flushPromises();
+                    request.mockClear();
+                    const responses = [12, 13, 21].map((tabId) => dispatch(
+                        {action: 'getSettings', needResponse: true}, senderFor(tabId)).sendResponse);
+                    await flushPromises();
+                    expect(request).toHaveBeenCalledTimes(1);
+                    answer();
+                    await flushPromises();
+                    responses.forEach((sendResponse) => {
+                        expect(sendResponse.mock.calls[0][0].settings.snippets).toBe('read once');
+                    });
+                });
+
+                it('tells the user to update a server.lua that ignores the command', async () => {
+                    // An old server.lua answers an unknown command with no res.
+                    const request = jest.fn(() => Promise.resolve({status: true, id: 1}));
+                    const {dispatch} = bootstrap({browser: withConnection(request)});
+                    const {sendResponse} = dispatch(
+                        {action: 'loadSettingsFromUrl', needResponse: true, url: '<native>'},
+                        senderFor(12));
+                    await flushPromises();
+                    expect(sendResponse).toHaveBeenCalledWith({
+                        status: 'Failed',
+                        error: expect.stringContaining('update it'),
+                    });
+                });
+
+                it("passes through the host's reason for a failed read", async () => {
+                    const request = jest.fn(() => Promise.resolve(
+                        {status: true, res: {error: 'Could not read /Users/x/.surfingkeys.js'}, id: 1}));
+                    const {dispatch} = bootstrap({browser: withConnection(request)});
+                    const {sendResponse} = dispatch(
+                        {action: 'loadSettingsFromUrl', needResponse: true, url: '<native>'},
+                        senderFor(12));
+                    await flushPromises();
+                    expect(sendResponse).toHaveBeenCalledWith({
+                        status: 'Failed',
+                        error: 'Could not read /Users/x/.surfingkeys.js',
+                    });
+                });
+
+                // A host that THREW puts its message where the payload goes, so `res`
+                // is a string -- not an out-of-date server.lua.
+                it('passes through a lua error from the host', async () => {
+                    const request = jest.fn(() => Promise.resolve(
+                        {status: false, res: 'Vim:E5108: Error executing lua', id: 1}));
+                    const {dispatch} = bootstrap({browser: withConnection(request)});
+                    const {sendResponse} = dispatch(
+                        {action: 'loadSettingsFromUrl', needResponse: true, url: '<native>'},
+                        senderFor(12));
+                    await flushPromises();
+                    expect(sendResponse).toHaveBeenCalledWith({
+                        status: 'Failed',
+                        error: 'Vim:E5108: Error executing lua',
+                    });
+                });
+
+                it('reports a failure the host did not explain', async () => {
+                    const request = jest.fn(() => Promise.resolve({status: false, id: 1}));
+                    const {dispatch} = bootstrap({browser: withConnection(request)});
+                    const {sendResponse} = dispatch(
+                        {action: 'loadSettingsFromUrl', needResponse: true, url: '<native>'},
+                        senderFor(12));
+                    await flushPromises();
+                    expect(sendResponse).toHaveBeenCalledWith({
+                        status: 'Failed',
+                        error: 'the native app failed to read the file',
+                    });
+                });
+
+                // The connection has no deadline of its own, so a request left waiting
+                // is there for the next read to trip over.
+                it('tells the connection when it has given up waiting', async () => {
+                    jest.useFakeTimers();
+                    try {
+                        let abandoned = null;
+                        const request = jest.fn((message, {signal}) => new Promise(() => {
+                            signal.addEventListener('abort', () => { abandoned = true; });
+                        }));
+                        const {dispatch} = bootstrap({browser: withConnection(request)});
+                        const {sendResponse} = dispatch(
+                            {action: 'loadSettingsFromUrl', needResponse: true, url: '<native>'},
+                            senderFor(12));
+                        jest.advanceTimersByTime(5000);
+                        expect(sendResponse).toHaveBeenCalledWith({
+                            status: 'Failed',
+                            error: 'the native app did not answer within 5 seconds',
+                        });
+                        expect(abandoned).toBe(true);
+                    } finally {
+                        jest.useRealTimers();
+                    }
+                });
+            });
         });
     });
 
@@ -1012,6 +1433,77 @@ describe('start', () => {
             // never-accessed tabs pushed to the end
             expect(ids).toEqual([13, 11, 21]);
         });
+
+        /*
+         * A tab that has just been created holds its destination in `pendingUrl` and
+         * has no `url` at all, so it is left out of the lists a person picks a tab
+         * from -- but a caller looking for the tab it opened a moment ago has to be
+         * able to see it, or a slow site alone decides whether that tab was found.
+         */
+        it('hides a tab that has not committed its navigation', () => {
+            const {chrome, dispatch} = bootstrap();
+            chrome.state.tabs = [
+                {id: 11, index: 0, windowId: 1, url: 'https://a/', title: 'A'},
+                {id: 12, index: 1, windowId: 1, url: '', pendingUrl: 'https://slow/', title: ''},
+            ];
+            const {sendResponse} = dispatch({action: 'getTabs', needResponse: true}, senderFor(11));
+            expect(sendResponse.mock.calls[0][0].tabs.map((t) => t.id)).toEqual([11]);
+        });
+
+        it('reports a tab that has not committed its navigation when asked to', () => {
+            const {chrome, dispatch} = bootstrap();
+            chrome.state.tabs = [
+                {id: 11, index: 0, windowId: 1, url: 'https://a/', title: 'A'},
+                {id: 12, index: 1, windowId: 1, url: '', pendingUrl: 'https://slow/', title: ''},
+            ];
+            const {sendResponse} = dispatch(
+                {action: 'getTabs', needResponse: true, includeLoading: true}, senderFor(11));
+            expect(sendResponse.mock.calls[0][0].tabs.map((t) => t.id)).toEqual([11, 12]);
+        });
+
+        /*
+         * A loading tab has no title and no `url` for a query to match, so admitting
+         * it and then matching it on those two would drop every one of them again the
+         * moment a caller passed a filter -- the destination stands in for both.
+         */
+        it('matches a filter against the destination of a tab still loading', () => {
+            const {chrome, dispatch} = bootstrap();
+            chrome.state.tabs = [
+                {id: 11, index: 0, windowId: 1, url: 'https://a/', title: 'A'},
+                {id: 12, index: 1, windowId: 1, url: '', pendingUrl: 'https://slow/', title: ''},
+            ];
+            const {sendResponse} = dispatch(
+                {action: 'getTabs', needResponse: true, includeLoading: true, filter: 'slow'},
+                senderFor(11));
+            expect(sendResponse.mock.calls[0][0].tabs.map((t) => t.id)).toEqual([12]);
+        });
+
+        // the tabs themselves are answered, not the projection the match was made on
+        it('answers the tabs as the browser reports them when filtering', () => {
+            const {chrome, dispatch} = bootstrap();
+            chrome.state.tabs = [
+                {id: 12, index: 0, windowId: 1, url: '', pendingUrl: 'https://slow/', title: ''},
+            ];
+            const {sendResponse} = dispatch(
+                {action: 'getTabs', needResponse: true, includeLoading: true, filter: 'slow'},
+                senderFor(12));
+            expect(sendResponse.mock.calls[0][0].tabs).toEqual([
+                {id: 12, index: 0, windowId: 1, url: '', pendingUrl: 'https://slow/', title: ''},
+            ]);
+        });
+
+        // a tab with neither is not a tab anything can be said about, whatever the
+        // caller asked for
+        it('still leaves out a tab with no address at all', () => {
+            const {chrome, dispatch} = bootstrap();
+            chrome.state.tabs = [
+                {id: 11, index: 0, windowId: 1, url: 'https://a/', title: 'A'},
+                {id: 12, index: 1, windowId: 1, title: ''},
+            ];
+            const {sendResponse} = dispatch(
+                {action: 'getTabs', needResponse: true, includeLoading: true}, senderFor(11));
+            expect(sendResponse.mock.calls[0][0].tabs.map((t) => t.id)).toEqual([11]);
+        });
     });
 
     describe('tab groups', () => {
@@ -1020,7 +1512,56 @@ describe('start', () => {
             dispatch({action: 'createTabGroup', title: 'Work', color: 'blue'}, senderFor(12));
             expect(chrome.tabs.group).toHaveBeenCalledWith(
                 {tabIds: [12], groupId: undefined}, expect.any(Function));
-            expect(chrome.tabGroups.update).toHaveBeenCalledWith(77, {title: 'Work', color: 'blue'});
+            expect(chrome.tabGroups.update).toHaveBeenCalledWith(
+                77, {title: 'Work', color: 'blue'}, expect.any(Function));
+        });
+
+        /*
+         * A caller that grouped what it LISTED rather than where it sits, and needs
+         * to be told what it got: the LLM chat's `group_tabs` reports the group back
+         * to the model, which must not claim more than actually happened.
+         */
+        it('groups the tabs it was given and answers with the group', () => {
+            const {chrome, dispatch} = bootstrap();
+            const {sendResponse} = dispatch(
+                {action: 'createTabGroup', tabIds: [11, 13], title: 'Docs', needResponse: true},
+                senderFor(12));
+            expect(chrome.tabs.group).toHaveBeenCalledWith(
+                {tabIds: [11, 13], groupId: undefined}, expect.any(Function));
+            expect(sendResponse).toHaveBeenCalledWith({groupId: 77, tabIds: [11, 13]});
+        });
+
+        it('falls back to the sender tab when the id list is empty', () => {
+            const {chrome, dispatch} = bootstrap();
+            dispatch({action: 'createTabGroup', tabIds: []}, senderFor(12));
+            expect(chrome.tabs.group).toHaveBeenCalledWith(
+                {tabIds: [12], groupId: undefined}, expect.any(Function));
+        });
+
+        /*
+         * Reported, not thrown: a throw in the background reaches the caller as a
+         * timeout it can neither explain nor act on.
+         */
+        it('reports a browser that cannot group tabs', () => {
+            const {chrome, dispatch} = bootstrap();
+            delete chrome.tabGroups;
+            const {sendResponse} = dispatch(
+                {action: 'createTabGroup', tabIds: [11], needResponse: true}, senderFor(12));
+            expect(chrome.tabs.group).not.toHaveBeenCalled();
+            expect(sendResponse.mock.calls[0][0].error).toMatch(/not supported/);
+        });
+
+        it('reports a group the browser refused to create', () => {
+            const {chrome, dispatch} = bootstrap();
+            chrome.tabs.group = jest.fn((props, cb) => {
+                chrome.runtime.lastError = {message: 'Tabs cannot be edited right now'};
+                cb(undefined);
+            });
+            const {sendResponse} = dispatch(
+                {action: 'createTabGroup', tabIds: [11], needResponse: true}, senderFor(12));
+            expect(sendResponse.mock.calls[0][0].error).toMatch(/cannot be edited/);
+            expect(chrome.tabGroups.update).not.toHaveBeenCalled();
+            delete chrome.runtime.lastError;
         });
 
         it('does not touch the group when no title or color is given', () => {
@@ -1152,7 +1693,7 @@ describe('start', () => {
             const {chrome, dispatch} = bootstrap({browser: {name: 'Safari'}});
             const {sendResponse} = dispatch({action: 'openLast', needResponse: true}, senderFor(12));
             expect(chrome.runtime.sendNativeMessage).toHaveBeenCalledWith(
-                'application.id', {command: 'reopenLastTab'}, expect.any(Function));
+                'surfingkeys', {command: 'reopenLastTab'}, expect.any(Function));
             expect(sendResponse).toHaveBeenCalledWith({nativeReply: 'reopenLastTab'});
         });
 
@@ -1346,6 +1887,67 @@ describe('start', () => {
             dispatch({action: 'viewSource', tab: {tabbed: true}}, senderFor(12));
             expect(chrome.tabs.create).toHaveBeenCalledWith(
                 expect.objectContaining({url: 'view-source:https://b.example/'}), expect.any(Function));
+        });
+
+        /*
+         * Navigating a tab the caller is NOT in: only the background can address one
+         * by id, which is what lets the LLM chat's `open_url` reuse a tab it opened
+         * instead of leaving one behind per URL. The focus is left alone -- the chat
+         * runs in an iframe of the tab the user is on, and activating another tab
+         * detaches it mid-answer.
+         */
+        it('navigates a tab by id and answers with it', () => {
+            const {chrome, dispatch} = bootstrap();
+            const {sendResponse} = dispatch(
+                {action: 'navigateTab', tabId: 11, url: 'https://dest/', needResponse: true},
+                senderFor(12));
+            expect(chrome.tabs.update).toHaveBeenCalledWith(11, {url: 'https://dest/'}, expect.any(Function));
+            expect(sendResponse).toHaveBeenCalledWith({tab: {id: 11}});
+            // no `active` and no window of its own: the tab is navigated where it stands
+            expect(chrome.windows.update).not.toHaveBeenCalled();
+        });
+
+        it('prefixes a bare host it is asked to navigate to', () => {
+            const {chrome, dispatch} = bootstrap();
+            dispatch({action: 'navigateTab', tabId: 11, url: 'example.com'}, senderFor(12));
+            expect(chrome.tabs.update).toHaveBeenCalledWith(11, {url: 'http://example.com'}, expect.any(Function));
+        });
+
+        it.each([
+            ['a javascript url', 'javascript:alert(1)'],
+            ['a file url', 'file:///etc/passwd'],
+            ['nothing at all', ''],
+        ])('refuses to point a tab at %s', (_label, url) => {
+            const {chrome, dispatch} = bootstrap();
+            const {sendResponse} = dispatch(
+                {action: 'navigateTab', tabId: 11, url, needResponse: true}, senderFor(12));
+            expect(chrome.tabs.update).not.toHaveBeenCalled();
+            expect(sendResponse.mock.calls[0][0].error).toMatch(/not an http\(s\) URL/);
+        });
+
+        it('asks for a tab id instead of guessing one', () => {
+            const {chrome, dispatch} = bootstrap();
+            const {sendResponse} = dispatch(
+                {action: 'navigateTab', url: 'https://dest/', needResponse: true}, senderFor(12));
+            expect(chrome.tabs.update).not.toHaveBeenCalled();
+            expect(sendResponse.mock.calls[0][0].error).toMatch(/no tab id/);
+        });
+
+        /*
+         * Reported, not thrown: the caller has to be able to tell the model that the
+         * tab is gone, and a throw here would reach it as a timeout instead.
+         */
+        it('reports a tab the browser would not navigate', () => {
+            const {chrome, dispatch} = bootstrap();
+            chrome.tabs.update = jest.fn((id, props, cb) => {
+                chrome.runtime.lastError = {message: 'No tab with id: 11.'};
+                cb(undefined);
+            });
+            const {sendResponse} = dispatch(
+                {action: 'navigateTab', tabId: 11, url: 'https://dest/', needResponse: true},
+                senderFor(12));
+            expect(sendResponse.mock.calls[0][0].error).toMatch(/No tab with id/);
+            delete chrome.runtime.lastError;
         });
     });
 
@@ -1713,20 +2315,57 @@ describe('start', () => {
     });
 
     describe('clipboard', () => {
-        it('writes text through the async clipboard API', () => {
-            const writeText = jest.fn();
+        it('writes text through the async clipboard API on Firefox/Chrome and reports success', async () => {
+            const writeText = jest.fn().mockResolvedValue();
             Object.defineProperty(global.navigator, 'clipboard', {value: {writeText}, configurable: true});
             const {dispatch} = bootstrap();
-            dispatch({action: 'writeClipboard', text: 'copied'}, senderFor(12));
+            const {sendResponse} = dispatch(
+                {action: 'writeClipboard', needResponse: true, text: 'copied'}, senderFor(12));
+            await flushPromises();
             expect(writeText).toHaveBeenCalledWith('copied');
+            expect(sendResponse).toHaveBeenCalledWith({});
+        });
+
+        it('reports the reason navigator.clipboard.writeText rejected', async () => {
+            const writeText = jest.fn().mockRejectedValue(new Error('document is not focused'));
+            Object.defineProperty(global.navigator, 'clipboard', {value: {writeText}, configurable: true});
+            const {dispatch} = bootstrap();
+            const {sendResponse} = dispatch(
+                {action: 'writeClipboard', needResponse: true, text: 'copied'}, senderFor(12));
+            await flushPromises();
+            expect(sendResponse).toHaveBeenCalledWith({error: 'document is not focused'});
         });
 
         it('reads through the native host on Safari', () => {
             const {chrome, dispatch} = bootstrap({browser: {name: 'Safari'}});
             const {sendResponse} = dispatch({action: 'readClipboard', needResponse: true}, senderFor(12));
             expect(chrome.runtime.sendNativeMessage).toHaveBeenCalledWith(
-                'application.id', {command: 'Clipboard.read'}, expect.any(Function));
+                'surfingkeys', {command: 'Clipboard.read'}, expect.any(Function));
             expect(sendResponse).toHaveBeenCalledWith({nativeReply: 'Clipboard.read'});
+        });
+
+        it('writes through the native host on Safari instead of navigator.clipboard', () => {
+            const writeText = jest.fn();
+            Object.defineProperty(global.navigator, 'clipboard', {value: {writeText}, configurable: true});
+            const {chrome, dispatch} = bootstrap({browser: {name: 'Safari'}});
+            const {sendResponse} = dispatch(
+                {action: 'writeClipboard', needResponse: true, text: 'copied'}, senderFor(12));
+            expect(chrome.runtime.sendNativeMessage).toHaveBeenCalledWith(
+                'surfingkeys', {command: 'Clipboard.write', text: 'copied'}, expect.any(Function));
+            expect(writeText).not.toHaveBeenCalled();
+            expect(sendResponse).toHaveBeenCalledWith({nativeReply: 'Clipboard.write'});
+        });
+
+        it('reports a Safari native app that cannot be reached', () => {
+            const {chrome, dispatch} = bootstrap({browser: {name: 'Safari'}});
+            chrome.runtime.sendNativeMessage = jest.fn((id, msg, cb) => {
+                chrome.runtime.lastError = {message: 'native host not found'};
+                cb(undefined);
+                chrome.runtime.lastError = undefined;
+            });
+            const {sendResponse} = dispatch(
+                {action: 'writeClipboard', needResponse: true, text: 'copied'}, senderFor(12));
+            expect(sendResponse).toHaveBeenCalledWith({error: 'native host not found'});
         });
     });
 
@@ -1770,10 +2409,27 @@ describe('start', () => {
         });
 
         it('advertises neovim support in the full settings payload', () => {
-            const nvimServer = {instance: Promise.resolve({})};
+            const nvimServer = {ready: true, instance: Promise.resolve({})};
             const {dispatch} = bootstrap({browser: {nvimServer}});
             const {sendResponse} = dispatch({action: 'getSettings', needResponse: true}, senderFor(12));
-            expect(sendResponse.mock.calls[0][0].settings.useNeovim).toBeTruthy();
+            // A boolean, not the promise: a content script receives a promise as a
+            // truthy empty object.
+            expect(sendResponse.mock.calls[0][0].settings.useNeovim).toBe(true);
+        });
+
+        it('reports no neovim support as false, not as absent', () => {
+            const {dispatch} = bootstrap();
+            const {sendResponse} = dispatch({action: 'getSettings', needResponse: true}, senderFor(12));
+            expect(sendResponse.mock.calls[0][0].settings.useNeovim).toBe(false);
+        });
+
+        it('withholds neovim support while the connection is still pending', () => {
+            // A pending connection may have no host behind it, so the doubt goes
+            // against neovim.
+            const nvimServer = {ready: false, instance: new Promise(() => {})};
+            const {dispatch} = bootstrap({browser: {nvimServer}});
+            const {sendResponse} = dispatch({action: 'getSettings', needResponse: true}, senderFor(12));
+            expect(sendResponse.mock.calls[0][0].settings.useNeovim).toBe(false);
         });
     });
 
@@ -2200,6 +2856,200 @@ describe('start', () => {
             }
         });
 
+        /*
+         * The worker is woken BY the request, and reading the stored config back is
+         * asynchronous, so the request arrives first. Answering it from the registry
+         * as it stands at that moment is what reported "Please set up bedrock
+         * correctly" for credentials the user had configured, and a custom provider
+         * as not implemented, on the first chat after an idle period.
+         */
+        describe('a request that arrives before the stored config is read', () => {
+            const STORED = {storage: {local: {_llmProviderConfig: {
+                bedrock: {accessKeyId: 'AKIA', secretAccessKey: 'secret', model: 'claude'},
+                custom: {claude: {serviceUrl: 'https://api.example', apiKey: 'k', model: 'claude-x'}},
+            }}}, deferStorageReads: true};
+
+            it('holds the request until the providers are back, then dispatches it', () => {
+                const realCustom = llmClients.custom;
+                const custom = jest.spyOn(llmClients, 'custom').mockImplementation(() => {});
+                // the spy replaces the function, and registration goes through it
+                llmClients.custom.register = realCustom.register;
+                const {chrome, dispatch} = bootstrap({chrome: STORED});
+                try {
+                    dispatch({action: 'llmRequest', provider: 'claude', messages: []}, senderFor(12));
+
+                    // nothing is registered yet, and the frame must NOT be told so
+                    expect(custom).not.toHaveBeenCalled();
+                    expect(chrome.tabs.sendMessage).not.toHaveBeenCalledWith(12, expect.objectContaining({
+                        subject: 'llmResponse',
+                    }), expect.anything());
+
+                    chrome.flushStorageReads();
+
+                    expect(custom).toHaveBeenCalledWith(
+                        expect.objectContaining({provider: 'claude'}), expect.any(Object));
+                } finally {
+                    custom.mockRestore();
+                    delete llmClients.claude;
+                }
+            });
+
+            it('initialises bedrock before the request reaches it', () => {
+                const init = jest.spyOn(llmClients.bedrock, 'init').mockImplementation(() => {});
+                const bedrock = jest.spyOn(llmClients, 'bedrock').mockImplementation(() => {});
+                // the spy replaces the function, so `init` has to hang off the spy too
+                llmClients.bedrock.init = init;
+                const {chrome, dispatch} = bootstrap({chrome: STORED});
+                try {
+                    dispatch({action: 'llmRequest', provider: 'bedrock', messages: []}, senderFor(12));
+                    expect(bedrock).not.toHaveBeenCalled();
+
+                    chrome.flushStorageReads();
+
+                    expect(init).toHaveBeenCalledWith(expect.objectContaining({accessKeyId: 'AKIA'}));
+                    expect(bedrock).toHaveBeenCalled();
+                } finally {
+                    bedrock.mockRestore();
+                    init.mockRestore();
+                    delete llmClients.claude;
+                }
+            });
+
+            it('lists the user\'s own providers rather than the built-in ones alone', () => {
+                const {chrome, dispatch} = bootstrap({chrome: STORED});
+                try {
+                    const {sendResponse, kept} = dispatch(
+                        {action: 'getAllLlmProviders', needResponse: true}, senderFor(12));
+                    // the channel is kept open instead of answering with a short list
+                    expect(kept).toBe(true);
+                    expect(sendResponse).not.toHaveBeenCalled();
+
+                    chrome.flushStorageReads();
+
+                    expect(sendResponse.mock.calls[0][0].providers).toContain('claude');
+                } finally {
+                    delete llmClients.claude;
+                }
+            });
+
+            /*
+             * A request must not be left waiting on a read that cannot happen: the
+             * frontend books the shared `llmResponse` handler for its duration, and a
+             * request that never completes disables every LLM feature in that frame
+             * until a reload. A chrome API throws synchronously once the extension
+             * context has been invalidated, so that throw releases the queue.
+             */
+            it('answers a request even when the config cannot be read at all', () => {
+                const {chrome, dispatch} = bootstrap({chrome: {
+                    storageReadThrows: new Error('Extension context invalidated'),
+                }});
+                dispatch({action: 'llmRequest', provider: 'nope', messages: []}, senderFor(12));
+
+                expect(chrome.tabs.sendMessage).toHaveBeenCalledWith(12, expect.objectContaining({
+                    chunk: expect.stringContaining('no LLM provider nope'),
+                }), {frameId: 0});
+            });
+
+            /*
+             * The other way a read fails: accepted, then answered with `undefined` and
+             * chrome.runtime.lastError instead of items. Reaching into that answer
+             * throws INSIDE the storage callback, where the `try` above cannot catch it
+             * and nothing is left to release the queue -- so the request would hang.
+             */
+            it('answers a request when the read fails instead of returning items', () => {
+                const {chrome, dispatch} = bootstrap({chrome: {
+                    deferStorageReads: true,
+                    storageReadError: 'An unexpected error occurred',
+                }});
+                dispatch({action: 'llmRequest', provider: 'nope', messages: []}, senderFor(12));
+                expect(chrome.tabs.sendMessage).not.toHaveBeenCalledWith(
+                    12, expect.objectContaining({subject: 'llmResponse'}), expect.anything());
+
+                chrome.flushStorageReads();
+
+                expect(chrome.tabs.sendMessage).toHaveBeenCalledWith(12, expect.objectContaining({
+                    chunk: expect.stringContaining('no LLM provider nope'),
+                }), {frameId: 0});
+                expect(chrome.tabs.sendMessage).toHaveBeenCalledWith(
+                    12, {subject: 'llmResponse', message: {}, done: true}, {frameId: 0});
+            });
+        });
+
+        /*
+         * The other order, and the one a page load actually produces: the boot read is
+         * issued, then a page reports what the snippets say. A read is answered from
+         * the state it was ISSUED in, so that answer predates what the page just
+         * persisted -- restoring on top of it would put the previous model or the
+         * previous credentials back, and the request waiting on the read is dispatched
+         * into exactly that.
+         */
+        describe('a page that reports the snippets while the read is in flight', () => {
+            const snippetSettings = (llm) => ({
+                action: 'updateSettings', scope: 'snippets', settings: {llm},
+            });
+
+            it('keeps the model the page reported rather than the stored one', () => {
+                const init = jest.spyOn(llmClients.bedrock, 'init').mockImplementation(() => {});
+                const {chrome, dispatch} = bootstrap({chrome: {
+                    deferStorageReads: true,
+                    storage: {local: {_llmProviderConfig: {bedrock: {
+                        accessKeyId: 'AKIA', secretAccessKey: 'secret', model: 'stale-model',
+                    }}}},
+                }});
+                try {
+                    dispatch(snippetSettings({bedrock: {
+                        accessKeyId: 'AKIA', secretAccessKey: 'secret', model: 'fresh-model',
+                    }}), senderFor(12));
+                    expect(init).toHaveBeenCalledWith(expect.objectContaining({model: 'fresh-model'}));
+
+                    chrome.flushStorageReads();
+
+                    // the stale answer landed and was ignored: no second init
+                    expect(init).toHaveBeenCalledTimes(1);
+                } finally {
+                    init.mockRestore();
+                }
+            });
+
+            it('still releases a request waiting on that read', () => {
+                const {chrome, dispatch} = bootstrap({chrome: {deferStorageReads: true}});
+                dispatch({action: 'llmRequest', provider: 'nope', messages: []}, senderFor(12));
+                dispatch(snippetSettings({ollama: {model: 'llama3.2'}}), senderFor(12));
+                expect(chrome.tabs.sendMessage).not.toHaveBeenCalledWith(
+                    12, expect.objectContaining({subject: 'llmResponse'}), expect.anything());
+
+                chrome.flushStorageReads();
+
+                expect(chrome.tabs.sendMessage).toHaveBeenCalledWith(12, expect.objectContaining({
+                    chunk: expect.stringContaining('no LLM provider nope'),
+                }), {frameId: 0});
+            });
+
+            /*
+             * Snippets carrying no llm config say nothing about the providers stored
+             * earlier -- the same reason `_persistLlmProviderConfig` leaves the stored
+             * copy alone -- so such an update must not suppress the restore.
+             */
+            it('still restores when the snippets carry no providers at all', () => {
+                const {chrome, dispatch} = bootstrap({chrome: {
+                    deferStorageReads: true,
+                    storage: {local: {_llmProviderConfig: {custom: {
+                        claude: {serviceUrl: 'https://api.example', apiKey: 'k', model: 'claude-x'},
+                    }}}},
+                }});
+                try {
+                    dispatch({action: 'updateSettings', scope: 'snippets',
+                        settings: {showTabIndices: true}}, senderFor(12));
+
+                    chrome.flushStorageReads();
+
+                    expect(llmClients.claude).toBe(llmClients.custom);
+                } finally {
+                    delete llmClients.claude;
+                }
+            });
+        });
+
         it('streams chunks and the final message back to the requesting frame', () => {
             const {chrome, dispatch} = bootstrap();
             llmClients.faux = (message, {onChunk, onComplete}) => {
@@ -2244,6 +3094,76 @@ describe('start', () => {
                 expect(chrome.runtime.sendMessage).toHaveBeenCalledWith(
                     {subject: 'llmResponse', chunk: 'hi'});
                 expect(chrome.tabs.sendMessage).not.toHaveBeenCalled();
+            } finally {
+                delete llmClients.faux;
+            }
+        });
+
+        /*
+         * Requests overlap: a provider streams for as long as the model takes, and a
+         * chat in one tab does not stop the user asking in another (nor do two frames
+         * waking this worker together, which queue behind the provider read). Each
+         * reply has to reach the frame that ASKED -- one answer arriving in the wrong
+         * tab is also an asking frame left hanging on a reply it never gets, with its
+         * `llmResponse` booking held until a reload.
+         */
+        it('streams each of two overlapping requests back to its own frame', () => {
+            const {chrome, dispatch} = bootstrap();
+            const turns = [];
+            llmClients.faux = (message, callbacks) => turns.push(callbacks);
+            try {
+                dispatch({action: 'llmRequest', provider: 'faux', messages: []}, senderFor(11));
+                dispatch({action: 'llmRequest', provider: 'faux', messages: []}, senderFor(12));
+                expect(turns).toHaveLength(2);
+
+                // the FIRST request answers after the second has been accepted
+                turns[0].onChunk('for eleven');
+                turns[0].onComplete({content: [{type: 'text', text: 'eleven done'}]});
+                turns[1].onChunk('for twelve');
+
+                expect(chrome.tabs.sendMessage).toHaveBeenCalledWith(
+                    11, {subject: 'llmResponse', chunk: 'for eleven'}, {frameId: 0});
+                expect(chrome.tabs.sendMessage).toHaveBeenCalledWith(11, {
+                    subject: 'llmResponse',
+                    message: {content: [{type: 'text', text: 'eleven done'}]},
+                    done: true,
+                }, {frameId: 0});
+                expect(chrome.tabs.sendMessage).toHaveBeenCalledWith(
+                    12, {subject: 'llmResponse', chunk: 'for twelve'}, {frameId: 0});
+                // nothing meant for one tab was delivered to the other
+                const routed = chrome.tabs.sendMessage.mock.calls
+                    .filter((c) => c[1] && c[1].subject === 'llmResponse')
+                    .map((c) => [c[0], c[1].chunk || c[1].message]);
+                expect(routed).toEqual([
+                    [11, 'for eleven'],
+                    [11, {content: [{type: 'text', text: 'eleven done'}]}],
+                    [12, 'for twelve'],
+                ]);
+            } finally {
+                delete llmClients.faux;
+            }
+        });
+
+        // the same two frames, both queued behind the boot read: whichever asked last
+        // must not become the destination of the one that asked first
+        it('keeps the frames apart when both requests waited for the provider read', () => {
+            const {chrome, dispatch} = bootstrap({chrome: {deferStorageReads: true}});
+            const turns = [];
+            llmClients.faux = (message, callbacks) => turns.push(callbacks);
+            try {
+                dispatch({action: 'llmRequest', provider: 'faux', messages: []}, senderFor(11));
+                dispatch({action: 'llmRequest', provider: 'faux', messages: []}, senderFor(12));
+                expect(turns).toHaveLength(0);
+
+                chrome.flushStorageReads();
+
+                expect(turns).toHaveLength(2);
+                turns[0].onChunk('for eleven');
+                turns[1].onChunk('for twelve');
+                expect(chrome.tabs.sendMessage).toHaveBeenCalledWith(
+                    11, {subject: 'llmResponse', chunk: 'for eleven'}, {frameId: 0});
+                expect(chrome.tabs.sendMessage).toHaveBeenCalledWith(
+                    12, {subject: 'llmResponse', chunk: 'for twelve'}, {frameId: 0});
             } finally {
                 delete llmClients.faux;
             }
@@ -2331,6 +3251,123 @@ describe('start', () => {
             } finally {
                 delete llmClients.faux;
             }
+        });
+    });
+    /*
+     * Stopping a chat mid-answer: llmchat.js `stopTurn` -> `llmAbort` -> the function
+     * the provider returned. A stub provider stands in for a real one, since what is
+     * under test is the bookkeeping around it rather than any provider's stream: what
+     * gets cancelled, and what the frame hears afterwards.
+     */
+    describe('aborting an llm request', () => {
+        const request = (requestId) => (
+            {action: 'llmRequest', provider: 'faux', requestId, messages: []});
+        const llmReplies = (chrome) => chrome.tabs.sendMessage.mock.calls
+            .filter((c) => c[1] && c[1].subject === 'llmResponse');
+
+        let faux;
+        beforeEach(() => {
+            // one record per request, since a frame's requests come one after another
+            // and each returns a canceller of its own
+            faux = jest.fn((message, opts) => {
+                const abort = jest.fn();
+                faux.requests.push({requestId: message.requestId, opts, abort});
+                return abort;
+            });
+            faux.requests = [];
+            llmClients.faux = faux;
+        });
+        afterEach(() => {
+            delete llmClients.faux;
+        });
+
+        it('cancels the connection the frame has in flight', () => {
+            const {dispatch} = bootstrap();
+            dispatch(request(1), senderFor(12));
+
+            dispatch({action: 'llmAbort', requestId: 1}, senderFor(12));
+
+            expect(faux.requests[0].abort).toHaveBeenCalled();
+        });
+
+        /*
+         * Cancelling a fetch does not stop it reporting -- the rejection reaches
+         * `fail`, which sends a chunk and a completion. Those must not reach the frame:
+         * by the time they arrive it may have asked something new and booked
+         * `llmResponse` again, and nothing in a reply says which request it answers, so
+         * they would land in the answer to the new question and release its booking
+         * early.
+         */
+        it('silences a cancelled request instead of letting its reply land', () => {
+            const {chrome, dispatch} = bootstrap();
+            dispatch(request(1), senderFor(12));
+            dispatch({action: 'llmAbort', requestId: 1}, senderFor(12));
+
+            faux.requests[0].opts.onChunk('half an answer');
+            faux.requests[0].opts.onComplete({role: 'assistant', content: 'half an answer'});
+
+            expect(llmReplies(chrome)).toHaveLength(0);
+        });
+
+        /*
+         * An abort names the request it was sent for, and one naming a request this
+         * frame is no longer running does nothing. Cancelling the wrong one would be
+         * unrecoverable: it is silenced by the rule above, so the frame would wait for
+         * an answer that never comes, holding the shared booking, with every LLM
+         * feature in it dead until a reload.
+         */
+        it('ignores an abort that names a request the frame is no longer running', () => {
+            const {chrome, dispatch} = bootstrap();
+            dispatch(request(1), senderFor(12));
+            dispatch({action: 'llmAbort', requestId: 1}, senderFor(12));
+            // the user asks something else, and the stopped turn's abort is delivered
+            // only now
+            dispatch(request(2), senderFor(12));
+            dispatch({action: 'llmAbort', requestId: 1}, senderFor(12));
+
+            const asked = faux.requests[1];
+            expect(asked.abort).not.toHaveBeenCalled();
+            asked.opts.onComplete({role: 'assistant', content: 'the answer'});
+            expect(llmReplies(chrome)).toHaveLength(1);
+        });
+
+        it('cancels only the frame that asked', () => {
+            const {dispatch} = bootstrap();
+            dispatch(request(1), senderFor(11));
+            dispatch(request(1), senderFor(12));
+
+            dispatch({action: 'llmAbort', requestId: 1}, senderFor(11));
+
+            expect(faux.requests[0].abort).toHaveBeenCalled();
+            expect(faux.requests[1].abort).not.toHaveBeenCalled();
+        });
+
+        /*
+         * A request stopped while it is still queued behind the boot-time config read
+         * (see whenLlmProvidersReady) has nothing to cancel yet, so not starting it is
+         * the cancellation.
+         */
+        it('never starts a request stopped while queued behind the config read', () => {
+            const {chrome, dispatch} = bootstrap({chrome: {deferStorageReads: true}});
+            dispatch(request(1), senderFor(12));
+            dispatch({action: 'llmAbort', requestId: 1}, senderFor(12));
+
+            chrome.flushStorageReads();
+
+            expect(faux).not.toHaveBeenCalled();
+            expect(llmReplies(chrome)).toHaveLength(0);
+        });
+
+        // an abort races a reply that was already on its way, and the caller cannot
+        // know which won
+        it('does nothing when the frame has nothing in flight', () => {
+            const {chrome, dispatch} = bootstrap();
+            dispatch(request(1), senderFor(12));
+            faux.requests[0].opts.onComplete({role: 'assistant', content: 'the answer'});
+
+            expect(() => dispatch({action: 'llmAbort', requestId: 1}, senderFor(12))).not.toThrow();
+            expect(faux.requests[0].abort).not.toHaveBeenCalled();
+            expect(llmReplies(chrome)).toHaveLength(1);
         });
     });
 });
