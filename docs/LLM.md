@@ -14,7 +14,7 @@ Press `A` to open a chat popup and talk to an AI provider. The current page is n
 
 * Ollama
 * Bedrock
-* Custom (any OpenAI-compatible API — SiliconFlow, OpenRouter, DeepSeek, Gemini, etc.)
+* Custom (any OpenAI-compatible API — OpenRouter, Gemini, etc.)
 
 Set up credentials first:
 
@@ -25,24 +25,11 @@ Set up credentials first:
             secretAccessKey: '****************************************',
             model: 'global.anthropic.claude-opus-4-8',
         },
-        ollama: {
-            model: 'qwen2.5-coder:32b',
-        },
         custom: {
-            siliconflow: {
-                serviceUrl: 'https://api.siliconflow.cn/v1/chat/completions',
-                apiKey: '***********************************',
-                model: 'deepseek-ai/DeepSeek-V3.1',
-            },
             openrouter: {
                 serviceUrl: 'https://openrouter.ai/api/v1/chat/completions',
                 apiKey: '***********************************',
                 model: 'meta-llama/llama-3.1-70b-instruct:free',
-            },
-            deepseek: {
-                serviceUrl: 'https://api.deepseek.com/chat/completions',
-                apiKey: '***********************************',
-                model: 'deepseek-chat',
             },
             gemini: {
                 serviceUrl: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
@@ -151,7 +138,7 @@ For example, to make your AI a translator:
 
     api.mapkey('A', '#8Open llm chat', function() {
         api.Front.openOmnibar({type: "LLMChat", extra: {
-            system: "You're a translator, whenever you got a message in Chinese, please just translate it into English, and if you got a message in English, please translate it to Chinese. You don't need to answer any question, just TRANSLATE."
+            system: "You're a translator. Translate every message you receive into English. You don't need to answer any question, just TRANSLATE."
         }});
     });
 
