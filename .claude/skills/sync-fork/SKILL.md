@@ -50,8 +50,11 @@ Two classes of hit:
 - **Known** — patterns commit `5d6c6a0` already stripped: Baidu search alias
   and its doc mentions, `README_CN.md` and other CN-only files, `weibo.com`
   example domains, upstream donate/FUNDING/survey links, `.github`
-  upstream-only files (FUNDING.yml, ISSUE_TEMPLATE, stale.yml), `*.cn`
-  service URLs (e.g. siliconflow.cn), Chinese-language help/settings.
+  upstream-only files (FUNDING.yml, ISSUE_TEMPLATE, stale.yml),
+  Chinese-language help/settings. (`5d6c6a0` did NOT strip `*.cn` service
+  URLs such as siliconflow.cn or DeepSeek/Chinese-translator LLM examples from
+  the English docs — they were only dropped with `README_CN.md`, so they are
+  New/ambiguous, not Known.)
 - **New/ambiguous** — anything else China-related: a new CN search alias,
   CN service URL, CN-only default setting, or unclear case.
 
