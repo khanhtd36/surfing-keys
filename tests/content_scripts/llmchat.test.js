@@ -2414,7 +2414,7 @@ describe('llmchat page text', () => {
         }
 
         test('is told about the tools and can call read_page', async () => {
-            await openAndSendTo('deepseek');
+            await openAndSendTo('acme');
 
             const sent = llmRequests()[0];
             expect(sent.tools.map((t) => t.function.name)).toContain('read_page');
@@ -2427,7 +2427,7 @@ describe('llmchat page text', () => {
         });
 
         test('keys the result to the call it answers', async () => {
-            await openAndSendTo('deepseek');
+            await openAndSendTo('acme');
             await modelCalls('read_page', '{}', 'call_abc');
 
             // an OpenAI-compatible provider rejects a tool message without it
@@ -2438,14 +2438,14 @@ describe('llmchat page text', () => {
         test('still confirms a tool that reaches beyond the page', async () => {
             runtime.conf.llmAllowedTools = ['read_page'];
 
-            await openAndSendTo('deepseek');
+            await openAndSendTo('acme');
             await modelCalls('search_browsing_history', '{"query":"rust"}', 'call_1');
 
             expect(confirmPrompt()).toContain('search_browsing_history');
         });
 
         test('an answer with no tool call ends the round', async () => {
-            await openAndSendTo('deepseek');
+            await openAndSendTo('acme');
             mockBooked.handler({
                 done: true,
                 message: { role: 'assistant', content: [{ type: 'text', text: 'the answer' }] },

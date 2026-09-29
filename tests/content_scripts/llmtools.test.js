@@ -82,7 +82,7 @@ describe('llmtools', () => {
         test('a custom provider gets the openai shape too', () => {
             // custom providers are named by the user and reached over the
             // OpenAI-compatible API, so anything but bedrock is that shape
-            ['siliconflow', 'deepseek', 'whatever'].forEach((p) => {
+            ['acme2', 'acme', 'whatever'].forEach((p) => {
                 expect(tools.schemasFor(p)).toEqual(tools.schemasFor('ollama'));
             });
         });

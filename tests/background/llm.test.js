@@ -306,7 +306,7 @@ describe('openAI-compatible streaming', () => {
     const drive = (chunks, status = 200) => {
         global.fetch = jest.fn(() => Promise.resolve(Object.assign(streamOf(chunks), { status })));
         llmClients.custom({
-            provider: 'deepseek',
+            provider: 'acme',
             messages: [{ role: 'system', content: 'sys' }, { role: 'user', content: 'hi' }],
             tools: [{ type: 'function', function: { name: 'read_page' } }],
         }, opts);
@@ -317,10 +317,10 @@ describe('openAI-compatible streaming', () => {
         onChunk = jest.fn();
         onComplete = jest.fn();
         opts = { onChunk, onComplete };
-        llmClients.custom.register('deepseek', {
-            serviceUrl: 'https://api.deepseek.com/chat/completions',
+        llmClients.custom.register('acme', {
+            serviceUrl: 'https://api.example.com/chat/completions',
             apiKey: 'k',
-            model: 'deepseek-chat',
+            model: 'chat-model',
         });
     });
 
@@ -387,7 +387,7 @@ describe('openAI-compatible streaming', () => {
     it('replays tool_calls and tool_call_id back to the provider', async () => {
         global.fetch = jest.fn(() => Promise.resolve(Object.assign(streamOf(sse(['[DONE]'])), { status: 200 })));
         llmClients.custom({
-            provider: 'deepseek',
+            provider: 'acme',
             messages: [
                 { role: 'system', content: 'sys' },
                 { role: 'assistant', content: [{ type: 'text', text: '' }], tool_calls: [{ id: 'call_1' }] },
@@ -409,7 +409,7 @@ describe('openAI-compatible streaming', () => {
     it('sends every text block of a turn, not just the first', async () => {
         global.fetch = jest.fn(() => Promise.resolve(Object.assign(streamOf(sse(['[DONE]'])), { status: 200 })));
         llmClients.custom({
-            provider: 'deepseek',
+            provider: 'acme',
             messages: [
                 { role: 'system', content: 'sys' },
                 {
@@ -431,7 +431,7 @@ describe('openAI-compatible streaming', () => {
     it('sends an empty string for a turn with no text block at all', async () => {
         global.fetch = jest.fn(() => Promise.resolve(Object.assign(streamOf(sse(['[DONE]'])), { status: 200 })));
         llmClients.custom({
-            provider: 'deepseek',
+            provider: 'acme',
             messages: [
                 { role: 'system', content: 'sys' },
                 { role: 'assistant', content: [{ type: 'tool_use', id: 'u1', name: 'read_page', input: {} }] },
@@ -465,9 +465,9 @@ describe('openAI-compatible streaming', () => {
     });
 
     it('reports a misconfigured provider and releases the caller', async () => {
-        llmClients.custom.register('deepseek', { serviceUrl: 'https://x', model: 'm' });
+        llmClients.custom.register('acme', { serviceUrl: 'https://x', model: 'm' });
 
-        llmClients.custom({ provider: 'deepseek', messages: [] }, opts);
+        llmClients.custom({ provider: 'acme', messages: [] }, opts);
 
         expect(chunkText()).toContain('api key');
         expect(onComplete).toHaveBeenCalledTimes(1);
@@ -476,7 +476,7 @@ describe('openAI-compatible streaming', () => {
     it('forwards tool_choice, so the tools can stay declared while being refused', async () => {
         global.fetch = jest.fn(() => Promise.resolve(Object.assign(streamOf(sse(['[DONE]'])), { status: 200 })));
         llmClients.custom({
-            provider: 'deepseek',
+            provider: 'acme',
             messages: [{ role: 'system', content: 'sys' }],
             tools: [{ type: 'function', function: { name: 'read_page' } }],
             tool_choice: 'none',
@@ -662,13 +662,13 @@ describe('cancelling a request', () => {
     });
 
     it('aborts an openAI-compatible connection and releases the caller', async () => {
-        llmClients.custom.register('deepseek', {
-            serviceUrl: 'https://api.deepseek.com/chat/completions',
+        llmClients.custom.register('acme', {
+            serviceUrl: 'https://api.example.com/chat/completions',
             apiKey: 'k',
-            model: 'deepseek-chat',
+            model: 'chat-model',
         });
         global.fetch = hangingFetch();
-        const abort = llmClients.custom({ provider: 'deepseek', messages: [] }, opts);
+        const abort = llmClients.custom({ provider: 'acme', messages: [] }, opts);
         abort();
         await settled();
 
@@ -683,10 +683,10 @@ describe('cancelling a request', () => {
      * is released whatever ended it.
      */
     it('cancels a stream that had already started, and completes only once', async () => {
-        llmClients.custom.register('deepseek', {
-            serviceUrl: 'https://api.deepseek.com/chat/completions',
+        llmClients.custom.register('acme', {
+            serviceUrl: 'https://api.example.com/chat/completions',
             apiKey: 'k',
-            model: 'deepseek-chat',
+            model: 'chat-model',
         });
         global.fetch = jest.fn((url, init) => Promise.resolve({
             status: 200,
@@ -701,7 +701,7 @@ describe('cancelling a request', () => {
                 }),
             },
         }));
-        const abort = llmClients.custom({ provider: 'deepseek', messages: [] }, opts);
+        const abort = llmClients.custom({ provider: 'acme', messages: [] }, opts);
         await settled();
         abort();
         await settled();
@@ -781,19 +781,19 @@ describe('a connection that never settles', () => {
     });
 
     it('fails a custom openAI-compatible client, naming it in the message', () => {
-        llmClients.custom.register('deepseek', {
-            name: 'DeepSeek',
-            serviceUrl: 'https://api.deepseek.com/chat/completions',
+        llmClients.custom.register('acme', {
+            name: 'Acme',
+            serviceUrl: 'https://api.example.com/chat/completions',
             apiKey: 'k',
-            model: 'deepseek-chat',
+            model: 'chat-model',
         });
         global.fetch = neverSettlingFetch();
-        llmClients.custom({ provider: 'deepseek', messages: [] }, opts);
+        llmClients.custom({ provider: 'acme', messages: [] }, opts);
 
         jest.advanceTimersByTime(CONNECT_TIMEOUT_MS);
 
         expect(global.fetch.mock.calls[0][1].signal.aborted).toBe(true);
-        expect(onChunk).toHaveBeenCalledWith(expect.stringContaining('DeepSeek'));
+        expect(onChunk).toHaveBeenCalledWith(expect.stringContaining('Acme'));
         expect(onComplete).toHaveBeenCalledWith({});
     });
 
