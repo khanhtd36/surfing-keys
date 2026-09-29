@@ -51,7 +51,12 @@ Two classes of hit:
   and its doc mentions, `README_CN.md` and other CN-only files, `weibo.com`
   example domains, upstream donate/FUNDING/survey links, `.github`
   upstream-only files (FUNDING.yml, ISSUE_TEMPLATE, stale.yml),
-  Chinese-language help/settings. (`5d6c6a0` did NOT strip `*.cn` service
+  Chinese-language help/settings, and the whole LLM chat feature (`llm.js`,
+  `llmchat.js`, `llmtools.js`, `pageMarkdown.js`, `docs/LLM.md`, `aws4fetch`,
+  LLM keymaps/settings/CSS/tests — removed deliberately, see `AGENTS.md`).
+  Upstream keeps changing it, so expect modify/delete conflicts on those files:
+  the resolution is always to keep them deleted, and to drop LLM hunks in files
+  that still exist. (`5d6c6a0` did NOT strip `*.cn` service
   URLs such as siliconflow.cn or DeepSeek/Chinese-translator LLM examples from
   the English docs — they were only dropped with `README_CN.md`, so they are
   New/ambiguous, not Known.)
