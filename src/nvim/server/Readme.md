@@ -1,10 +1,5 @@
-This native messaging host serves two features:
-
-* the neovim editor, which needs it to run `nvim` for you.
-* loading settings from `~/.surfingkeys.js`, by setting **Load settings from** to
-  `<native>` on the settings page — the browser can not read a file in your home
-  directory itself. Safari has the Surfingkeys app for this and needs none of the
-  setup below.
+This native messaging host serves the neovim editor, which needs it to run `nvim` for you.
+Safari has the Surfingkeys app for this and needs none of the setup below.
 
 > TODO: `allowed_origins` below list upstream's published extension IDs (Chrome Web Store / Firefox listing).
 > If this fork ever gets loaded via a store listing instead of "Load unpacked", add that build's own

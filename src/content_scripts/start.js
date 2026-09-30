@@ -10,6 +10,9 @@ RUNTIME("getTopSites", null, function(response) {
         return `<li><a href="${u.url}"><i style="background:url(${favUrl}) no-repeat"></i>${u.title}</a></li>`;
     });
     setSanitizedContent(document.querySelector("#topSites>ul"), urls.join("\n"));
+    if (!urls.length) {
+        document.getElementById("topSites").style.display = "none";
+    }
     var source = document.getElementById('quickIntroSource').innerHTML;
     setSanitizedContent(document.querySelector('#quickIntro'), marked.parse(source));
 

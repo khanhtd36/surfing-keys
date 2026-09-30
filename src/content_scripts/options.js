@@ -1,4 +1,3 @@
-import { NATIVE_LOCAL_PATH } from '../common/utils.js';
 
 export default function(
     RUNTIME,
@@ -75,22 +74,8 @@ export default function(
         return self;
     }
 
-    if (getBrowserName() === "Firefox") {
-        document.querySelector("#localPathForSettings").style.display = "";
-        document.querySelector("#proxySettings").style.display = "none";
-    } else if (getBrowserName().startsWith("Safari")) {
-        document.querySelector("#localPathHelpForFile").remove();
-        document.querySelector("#proxySettings").style.display = "none";
-        if (getBrowserName() === "Safari-iOS") {
-            // <native> reads ~/.surfingkeys.js through the app, and an iOS app has no
-            // accessible home directory to point that at. Advertising it here just
-            // sends the user chasing a read that can never succeed.
-            document.querySelector("#localPathHelpForNative").remove();
-        }
-    } else {
-        // The Chrome build ships without the `proxy` permission.
-        document.querySelector("#proxySettings").style.display = "none";
-    }
+    // The Chrome build ships without the `proxy` permission.
+    document.querySelector("#proxySettings").style.display = "none";
     var proxyModeSelect = document.querySelector("#proxyMode>select");
     var proxyGroup = document.getElementById("proxyMode").parentElement;
     var addProxyPair = document.getElementById('addProxyPair');
@@ -244,8 +229,6 @@ export default function(
         }
     }
 
-    var localPathSaved = "";
-    var localPathInput = document.getElementById("localPath");
     var sample = document.getElementById("sample").innerHTML;
     function renderSettings(rs) {
         if (rs.isMV3) {
@@ -254,10 +237,6 @@ export default function(
             showAdvanced(rs.isUserScriptsAvailable && rs.showAdvanced);
         } else {
             showAdvanced(rs.showAdvanced);
-        }
-        if (rs.localPath) {
-            localPathInput.value = rs.localPath;
-            localPathSaved = rs.localPath;
         }
         var h = window.innerHeight / 2;
         mappingsEditor.container.style.height = h + "px";
@@ -297,60 +276,15 @@ export default function(
         }
     };
 
-    document.querySelector('.infoPointer').onclick = function() {
-        var f = document.getElementById(this.getAttribute("for"));
-        if (f.style.display === "none") {
-            f.style.display = "";
-        } else {
-            f.style.display = "none";
-        }
-    };
-
-    function getURIPath(fn) {
-        // `<native>` names the file the native app reads rather than a location
-        // this page can resolve, so it must reach the background verbatim.
-        if (fn === NATIVE_LOCAL_PATH) {
-            return fn;
-        }
-        if (fn.length && !/^\w+:\/\/\w+/i.test(fn) && fn.indexOf('file:///') === -1) {
-            fn = fn.replace(/\\/g, '/');
-            if (fn[0] === '/') {
-                fn = fn.substr(1);
-            }
-            fn = "file:///" + fn;
-        }
-        return fn;
-    }
     function saveSettings() {
         var settingsCode = mappingsEditor.getValue();
-        var localPath = getURIPath(localPathInput.value.trim());
-        if (localPath.length && localPath !== localPathSaved) {
-            RUNTIME('loadSettingsFromUrl', {
-                url: localPath
-            }, function(res) {
-                var from = localPath === NATIVE_LOCAL_PATH ? "~/.surfingkeys.js" : localPath;
-                showBanner(res.status + ' to load settings from ' + from
-                    + (res.error ? ': ' + res.error : ''), 5000);
-                renderKeyMappings(res);
-                if (res.snippets && res.snippets.length) {
-                    localPathSaved = localPath;
-                    mappingsEditor.setValue(res.snippets, -1);
-                } else if (settingsCode === "") {
-                    mappingsEditor.setValue(sample, -1);
-                }
-            });
-        } else {
-            RUNTIME('updateSettings', {
-                settings: {
-                    snippets: settingsCode,
-                    // The trimmed value, so a stray space cannot turn `<native>`
-                    // into a file:// path that reads nothing.
-                    localPath: localPath
-                }
-            });
+        RUNTIME('updateSettings', {
+            settings: {
+                snippets: settingsCode
+            }
+        });
 
-            showBanner('Settings saved', 1000);
-        }
+        showBanner('Settings saved', 1000);
     }
     document.getElementById('save_button').onclick = saveSettings;
 

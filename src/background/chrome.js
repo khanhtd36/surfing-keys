@@ -28,8 +28,6 @@ function loadRawSettings(keys, cb, defaultSet) {
                     cb(subset);
                 });
             } else if (localSavedAt < syncSavedAt) {
-                // don't sync local path
-                delete syncSet.localPath;
                 extendObject(rawSet, syncSet);
                 cb(getSubSettings(rawSet, keys));
                 _save(chrome.storage.local, syncSet);

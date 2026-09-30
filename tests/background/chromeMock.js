@@ -313,7 +313,7 @@ function mockFetchFailure(error = new Error('offline')) {
     return global.fetch;
 }
 
-// Let queued promise callbacks (request(), _loadSettingsFromUrl(), ...) run.
+// Let queued promise callbacks (request(), ...) run.
 const flushPromises = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 module.exports = {

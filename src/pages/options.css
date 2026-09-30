@@ -132,7 +132,7 @@ div.deleteProxyPair {
 #addProxyPair {
     float: right;
 }
-.proxyPair input, #localPath {
+.proxyPair input {
     width: 520px;
 }
 @media only screen and (max-width: 767px) {
@@ -140,7 +140,7 @@ div.deleteProxyPair {
         margin: 0px 8px;
         width: initial;
     }
-    .proxyPair input, #localPath {
+    .proxyPair input {
         width: initial;
     }
 }
