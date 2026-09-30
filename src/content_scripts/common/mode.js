@@ -90,6 +90,7 @@ Mode.getCurrent = () => {
 
 Mode.specialKeys = {
     "<Alt-s>": ["<Alt-s>"],       // hotkey to toggleBlocklist
+    "<Alt-I>": ["<Alt-I>"],       // hotkey (Alt+Shift+i) to leave PassThrough entered with <Alt-i>
     "<Esc>": ["<Esc>"]
 };
 

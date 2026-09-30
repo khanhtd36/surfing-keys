@@ -87,12 +87,17 @@ function createLurk(normal) {
 
 function createPassThrough() {
     var self = new Mode("PassThrough");
-    var _autoExit, _timeout;
+    var _autoExit, _timeout, _exitOnEsc = true;
 
     self.addEventListener('keydown', function(event) {
         // prevent this event to be handled by Surfingkeys' other listeners
         event.sk_suppressed = true;
-        if (Mode.isSpecialKeyOf("<Esc>", event.sk_keyName)) {
+        // Esc must reach the page when the user entered PassThrough with <Alt-i>; swallowing it here
+        // would break Esc in page modals and editors, and the user could not tell why.
+        if (_exitOnEsc && Mode.isSpecialKeyOf("<Esc>", event.sk_keyName)) {
+            self.exit();
+            event.sk_stopPropagation = true;
+        } else if (!_exitOnEsc && Mode.isSpecialKeyOf("<Alt-I>", event.sk_keyName)) {
             self.exit();
             event.sk_stopPropagation = true;
         } else if (_timeout > 0) {
@@ -124,6 +129,10 @@ function createPassThrough() {
 
     self.setTimeout = function(timeout) {
         _timeout = timeout;
+    };
+
+    self.setExitOnEsc = function(exitOnEsc) {
+        _exitOnEsc = exitOnEsc;
     };
 
     return self;
@@ -322,8 +331,9 @@ function createNormal(insert) {
      * @name Normal.passThrough
      *
      */
-    self.passThrough = function(timeout) {
+    self.passThrough = function(timeout, exitOnEsc = true) {
         _passThrough.setTimeout(timeout);
+        _passThrough.setExitOnEsc(exitOnEsc);
         _passThrough.enter();
         return _passThrough;
     };
@@ -332,10 +342,10 @@ function createNormal(insert) {
         self.enter();
     };
     self.mappings.add(KeyboardUtils.encodeKeystroke("<Alt-i>"), {
-        annotation: "Enter PassThrough mode to temporarily suppress SurfingKeys",
+        annotation: "Enter PassThrough mode to temporarily suppress SurfingKeys, leave with Alt-Shift-i",
         feature_group: 0,
         code: function() {
-            self.passThrough();
+            self.passThrough(undefined, false);
         }
     });
     self.mappings.add("p", {
