@@ -28,7 +28,7 @@ Provide vim-style keyboard shortcuts for navigating and controlling web pages an
 
 - `<all_urls>` (content script): shortcuts and link hints must work on every page the user visits.
 - `tabs`: list, switch, move and close tabs; the tab omnibar.
-- `history`, `bookmarks`, `topSites`, `sessions`: omnibar suggestions and reopening closed tabs.
+- `history`, `bookmarks`, `sessions`: omnibar suggestions and reopening closed tabs.
 - `downloads`: download list and commands.
 - `storage`: save the user's settings and key mappings.
 - `scripting`: inject hints and UI into pages.
@@ -36,7 +36,7 @@ Provide vim-style keyboard shortcuts for navigating and controlling web pages an
 - `clipboardRead`, `clipboardWrite`: copy link/text and paste commands.
 - `favicon`: show site icons in the omnibar.
 - `tabGroups`: group and ungroup tabs from the keyboard.
-- `nativeMessaging`: optional helper program on the user's machine for the neovim editor, native clipboard and `~/.surfingkeys.js`.
+- `nativeMessaging`: optional helper program on the user's machine for the neovim editor, and native clipboard.
 
 ## Remote code
 

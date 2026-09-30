@@ -36,6 +36,8 @@ function modifyManifest(browser, mode, buffer) {
         // chromium family
         manifest.manifest_version = 3;
         delete manifest.commands.proxyThis;
+        // Not requested by the store build: getTopSites answers an empty list without it.
+        manifest.permissions = manifest.permissions.filter(p => p !== "topSites");
         manifest.permissions.push("favicon");
         manifest.permissions.push("userScripts");
         manifest.permissions.push("tabGroups");
