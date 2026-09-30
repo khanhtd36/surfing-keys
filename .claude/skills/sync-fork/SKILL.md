@@ -60,6 +60,11 @@ Two classes of hit:
   URLs such as siliconflow.cn or DeepSeek/Chinese-translator LLM examples from
   the English docs — they were only dropped with `README_CN.md`, so they are
   New/ambiguous, not Known.)
+- **Chrome Web Store fork changes** (not China-related — keep ours on conflict):
+  the Vimotion name/description/author in `src/manifest.json` and popup/options/start
+  titles, the icons in `src/icons/` and `icon.svg`, `PRIVACY.md`, the removed proxy
+  and tts permissions and their mappings (`default.js`, `webpack.config.js`,
+  `options.js`), and the deleted `donation.png`.
 - **New/ambiguous** — anything else China-related: a new CN search alias,
   CN service URL, CN-only default setting, or unclear case.
 
