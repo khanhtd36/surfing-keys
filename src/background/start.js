@@ -1899,7 +1899,13 @@ function start(browser) {
         _queueURLs = [];
     };
 
+    // The Chrome build does not request the `tts` permission, so chrome.tts is undefined and
+    // speaking is a silent no-op.
     self.getVoices = function(message, sender, sendResponse) {
+        if (!chrome.tts) {
+            _response(message, sendResponse, {voices: []});
+            return;
+        }
         chrome.tts.getVoices(function(voices) {
             _response(message, sendResponse, {
                 voices: voices
@@ -1908,6 +1914,9 @@ function start(browser) {
     };
 
     self.read = function(message, sender, sendResponse) {
+        if (!chrome.tts) {
+            return;
+        }
         var options = message.options || {};
         options.onEvent = function(ttsEvent) {
             // https://developer.chrome.com/docs/extensions/mv2/messaging/
@@ -1929,6 +1938,9 @@ function start(browser) {
         chrome.tts.speak(message.content, options);
     };
     self.stopReading = function(message, sender, sendResponse) {
+        if (!chrome.tts) {
+            return;
+        }
         chrome.tts.stop();
     };
 

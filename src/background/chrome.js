@@ -42,6 +42,10 @@ function loadRawSettings(keys, cb, defaultSet) {
 }
 
 function _applyProxySettings(proxyConf) {
+    // The Chrome build does not request the `proxy` permission, so chrome.proxy is undefined.
+    if (!chrome.proxy) {
+        return;
+    }
     if (!proxyConf.proxyMode || proxyConf.proxyMode === 'clear') {
         chrome.proxy.settings.clear({scope: 'regular'});
     } else {

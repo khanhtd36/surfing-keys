@@ -87,6 +87,9 @@ export default function(
             // sends the user chasing a read that can never succeed.
             document.querySelector("#localPathHelpForNative").remove();
         }
+    } else {
+        // The Chrome build ships without the `proxy` permission.
+        document.querySelector("#proxySettings").style.display = "none";
     }
     var proxyModeSelect = document.querySelector("#proxyMode>select");
     var proxyGroup = document.getElementById("proxyMode").parentElement;

@@ -35,9 +35,7 @@ function modifyManifest(browser, mode, buffer) {
     } else {
         // chromium family
         manifest.manifest_version = 3;
-        manifest.permissions.push("proxy");
-        manifest.permissions.push("tts");
-        manifest.permissions.push("downloads.shelf");
+        delete manifest.commands.proxyThis;
         manifest.permissions.push("favicon");
         manifest.permissions.push("userScripts");
         manifest.permissions.push("tabGroups");
