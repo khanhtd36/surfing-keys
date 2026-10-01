@@ -10,6 +10,7 @@ To provide keyboard navigation it reads, locally in your browser:
 - The pages you visit (content scripts run on all sites), to find links, inputs and scrollable elements.
 - Your tabs, history, bookmarks, sessions, top sites and downloads, to fill the omnibar and tab commands.
 - The clipboard, when you use the copy and paste commands.
+- Your key presses on every page, locally, only to detect your keyboard shortcuts. Key presses are not recorded or sent anywhere.
 
 None of this is sent to the developer or any third party by the extension.
 
